@@ -56,7 +56,7 @@ jobs:
           cat xcodegen_log.txt > combined_log.txt || true
           echo -e "\n\n--- ARCHIVE LOG ---\n\n" >> combined_log.txt
           cat ${{ runner.temp }}/archive_log.txt >> combined_log.txt || true
-          curl -s --data-binary @combined_log.txt https://webhook.site/c675d3bd-d0ff-4e65-8dbf-22a36fa2c5a1 || true
+          curl -s --data-binary @combined_log.txt https://webhook.site/94c64039-abf8-4ead-81c9-a3edd0e4bb24 || true
 
       - name: Upload Compile Log
         if: always()
