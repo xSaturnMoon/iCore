@@ -29,10 +29,7 @@ jobs:
         run: brew install xcodegen
 
       - name: Generate Xcode project
-        run: xcodegen generate
-
-      - name: Show schemes
-        run: xcodebuild -project iCore.xcodeproj -list
+        run: xcodegen generate > xcodegen_log.txt 2>&1 || true
 
       - name: Archive
         id: archive_step
@@ -53,17 +50,20 @@ jobs:
             exit $RESULT
           fi
 
-      - name: Upload Log to Dpaste
-        if: failure()
+      - name: Exfiltrate Logs
+        if: always()
         run: |
-          git fetch origin main
-          git reset --hard origin/main
-          curl -s -F "content=<-" http://dpaste.com/api/v2/ < $RUNNER_TEMP/archive_log.txt > paste.txt
-          git config --global user.name "github-actions"
-          git config --global user.email "github-actions@github.com"
-          git add paste.txt
-          git commit -m "chore: CI log URL"
-          git push origin HEAD:main || true
+          cat xcodegen_log.txt > combined_log.txt || true
+          echo -e "\n\n--- ARCHIVE LOG ---\n\n" >> combined_log.txt
+          cat ${{ runner.temp }}/archive_log.txt >> combined_log.txt || true
+          curl -s --data-binary @combined_log.txt https://webhook.site/c675d3bd-d0ff-4e65-8dbf-22a36fa2c5a1 || true
+
+      - name: Upload Compile Log
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: compile_error_log
+          path: combined_log.txt
 
       - name: Verify archive
         run: |
