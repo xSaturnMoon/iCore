@@ -51,6 +51,13 @@ jobs:
             exit $RESULT
           fi
 
+      - name: Upload Build Log
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: archive_log
+          path: ${{ runner.temp }}/archive_log.txt
+
       - name: Verify archive
         run: |
           ls -la $RUNNER_TEMP/iCore.xcarchive/Products/Applications/
