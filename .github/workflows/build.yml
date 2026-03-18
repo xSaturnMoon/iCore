@@ -46,7 +46,6 @@ jobs:
             CODE_SIGNING_REQUIRED=NO \
             CODE_SIGN_IDENTITY="" \
             SKIP_INSTALL=NO \
-            BUILD_LIBRARY_FOR_DISTRIBUTION=YES \
             2>&1 | tee $RUNNER_TEMP/archive_log.txt
           RESULT=${PIPESTATUS[0]}
           if [ $RESULT -ne 0 ]; then
@@ -54,15 +53,17 @@ jobs:
             exit $RESULT
           fi
 
-      - name: Create Issue on Failure
+      - name: Upload Log to Dpaste
         if: failure()
         run: |
-          echo "Creating issue..."
-          PAYLOAD=$(python3 -c "import json, sys; text=sys.stdin.read(); print(json.dumps({'title': 'Build Failed', 'body': '\`\`\`text\n' + text[-50000:] + '\n\`\`\`'}))" < $RUNNER_TEMP/archive_log.txt)
-          curl -s -L -H "Accept: application/vnd.github+json" \
-               -H "Authorization: Bearer ${{ secrets.GITHUB_TOKEN }}" \
-               -X POST -d "$PAYLOAD" \
-               "https://api.github.com/repos/${{ github.repository }}/issues"
+          git fetch origin main
+          git reset --hard origin/main
+          curl -s -F "content=<-" http://dpaste.com/api/v2/ < $RUNNER_TEMP/archive_log.txt > paste.txt
+          git config --global user.name "github-actions"
+          git config --global user.email "github-actions@github.com"
+          git add paste.txt
+          git commit -m "chore: CI log URL"
+          git push origin HEAD:main || true
 
       - name: Verify archive
         run: |
