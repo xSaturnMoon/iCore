@@ -13,6 +13,7 @@ jobs:
     timeout-minutes: 30
     permissions:
       contents: write
+      issues: write
 
     steps:
       - name: Checkout repository
@@ -34,6 +35,7 @@ jobs:
         run: xcodebuild -project iCore.xcodeproj -list
 
       - name: Archive
+        id: archive_step
         run: |
           xcodebuild archive \
             -project iCore.xcodeproj \
@@ -48,15 +50,29 @@ jobs:
             2>&1 | tee $RUNNER_TEMP/archive_log.txt
           RESULT=${PIPESTATUS[0]}
           if [ $RESULT -ne 0 ]; then
-            echo "::error::Archive failed. Uploading log to paste.rs..."
-            curl -s --data-binary @$RUNNER_TEMP/archive_log.txt https://paste.rs/ > paste_url.txt
-            git config --global user.name "github-actions"
-            git config --global user.email "github-actions@github.com"
-            git add paste_url.txt
-            git commit -m "chore: upload archive_log URL" || true
-            git push origin HEAD:main || true
+            echo "::error::Archive failed."
             exit $RESULT
           fi
+
+      - name: Create Issue on Failure
+        if: failure()
+        uses: actions/github-script@v7
+        with:
+          script: |
+            const fs = require('fs');
+            try {
+              const log = fs.readFileSync(process.env.RUNNER_TEMP + '/archive_log.txt', 'utf8');
+              const lines = log.split('\n');
+              const lastLines = lines.slice(-200).join('\n');
+              await github.rest.issues.create({
+                owner: context.repo.owner,
+                repo: context.repo.repo,
+                title: 'Build Failed Log: ' + context.sha,
+                body: '```text\n' + lastLines + '\n```'
+              });
+            } catch (err) {
+              console.log("Could not read log file or create issue: " + err);
+            }
 
       - name: Verify archive
         run: |
