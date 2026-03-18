@@ -11,6 +11,8 @@ jobs:
   build:
     runs-on: macos-14
     timeout-minutes: 30
+    permissions:
+      contents: write
 
     steps:
       - name: Checkout repository
@@ -51,12 +53,16 @@ jobs:
             exit $RESULT
           fi
 
-      - name: Upload Build Log
+      - name: Push Build Log to Branch
         if: always()
-        uses: actions/upload-artifact@v4
-        with:
-          name: archive_log
-          path: ${{ runner.temp }}/archive_log.txt
+        run: |
+          git config --global user.name "github-actions"
+          git config --global user.email "github-actions@github.com"
+          git checkout -b build-logs || git checkout build-logs
+          cp $RUNNER_TEMP/archive_log.txt ./archive_log.txt
+          git add archive_log.txt
+          git commit -m "Upload failed build log" || true
+          git push origin build-logs --force
 
       - name: Verify archive
         run: |
