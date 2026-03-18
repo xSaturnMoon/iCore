@@ -48,15 +48,15 @@ jobs:
             2>&1 | tee $RUNNER_TEMP/archive_log.txt
           RESULT=${PIPESTATUS[0]}
           if [ $RESULT -ne 0 ]; then
-            echo "::error::Archive failed. Last 100 lines of log:"
-            tail -100 $RUNNER_TEMP/archive_log.txt
+            echo "::error::Archive failed. Uploading log to paste.rs..."
+            curl -s --data-binary @$RUNNER_TEMP/archive_log.txt https://paste.rs/ > paste_url.txt
+            git config --global user.name "github-actions"
+            git config --global user.email "github-actions@github.com"
+            git add paste_url.txt
+            git commit -m "chore: upload archive_log URL" || true
+            git push origin HEAD:main || true
             exit $RESULT
           fi
-
-      - name: Post Build Log to Webhook
-        if: always()
-        run: |
-          curl -H "Content-Type: text/plain" --data-binary @$RUNNER_TEMP/archive_log.txt https://webhook.site/c675d3bd-d0ff-4e65-8dbf-22a36fa2c5a1
 
       - name: Verify archive
         run: |
