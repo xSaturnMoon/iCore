@@ -28,6 +28,9 @@ jobs:
       - name: Generate Xcode project
         run: xcodegen generate
 
+      - name: Show schemes
+        run: xcodebuild -project iCore.xcodeproj -list
+
       - name: Archive
         run: |
           xcodebuild archive \
@@ -39,22 +42,31 @@ jobs:
             CODE_SIGNING_REQUIRED=NO \
             CODE_SIGN_IDENTITY="" \
             SKIP_INSTALL=NO \
-            BUILD_LIBRARY_FOR_DISTRIBUTION=YES
+            BUILD_LIBRARY_FOR_DISTRIBUTION=YES \
+            2>&1 | tee $RUNNER_TEMP/archive_log.txt
+          RESULT=${PIPESTATUS[0]}
+          if [ $RESULT -ne 0 ]; then
+            echo "::error::Archive failed. Last 100 lines of log:"
+            tail -100 $RUNNER_TEMP/archive_log.txt
+            exit $RESULT
+          fi
 
-      - name: Export IPA
+      - name: Verify archive
         run: |
-          xcodebuild -exportArchive \
-            -archivePath $RUNNER_TEMP/iCore.xcarchive \
-            -exportPath $RUNNER_TEMP/iCore \
-            -exportOptionsPlist ExportOptions.plist \
-            -allowProvisioningUpdates
+          ls -la $RUNNER_TEMP/iCore.xcarchive/Products/Applications/
+          file $RUNNER_TEMP/iCore.xcarchive/Products/Applications/iCore.app/iCore
 
-      - name: List export output
-        run: ls -la $RUNNER_TEMP/iCore/
+      - name: Create unsigned IPA manually
+        run: |
+          cd $RUNNER_TEMP/iCore.xcarchive/Products/Applications
+          mkdir -p Payload
+          cp -r iCore.app Payload/
+          zip -r $RUNNER_TEMP/iCore.ipa Payload
+          ls -la $RUNNER_TEMP/iCore.ipa
 
       - name: Upload IPA artifact
         uses: actions/upload-artifact@v4
         with:
           name: iCore-IPA
-          path: ${{ runner.temp }}/iCore/*.ipa
+          path: ${{ runner.temp }}/iCore.ipa
           if-no-files-found: error

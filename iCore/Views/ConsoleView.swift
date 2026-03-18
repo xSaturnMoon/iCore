@@ -81,7 +81,7 @@ struct ConsoleView: View {
                         .id("bottom")
                 }
             }
-            .onChange(of: vm.consoleOutput) { _ in
+            .onChange(of: vm.consoleOutput) {
                 if autoScroll {
                     withAnimation(.easeOut(duration: 0.2)) {
                         proxy.scrollTo("bottom", anchor: .bottom)
