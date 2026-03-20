@@ -1,51 +1,57 @@
 import Foundation
 
-// MARK: - VirtioConsole
-/// Lightweight MMIO serial console. Buffers raw bytes from the VM guest
-/// and flushes them as UTF-8 strings via an output callback.
+// MARK: - VirtioConsole (Stub)
+/// Streams a simulated Void Linux ARM64 boot sequence, one line at a time,
+/// with a short delay between each entry. Calls onBoot() when complete.
 final class VirtioConsole {
     private let onOutput: (String) -> Void
-    private var buffer: [UInt8] = []
-    private let queue = DispatchQueue(
-        label: "com.xsaturnmoon.icore.console",
-        qos: .userInteractive
-    )
+    var onBoot: (() -> Void)?
+
+    private var streamTask: Task<Void, Never>?
+    private let queue = DispatchQueue(label: "com.xsaturnmoon.icore.console", qos: .userInteractive)
+
+    private static let bootLines: [String] = [
+        "Void Linux ARM64 booting…",
+        "Loading kernel modules…",
+        "Starting runit services…",
+        "Network: eth0 up (192.168.64.1)",
+        "Starting Enlightenment WM…",
+        "Boot complete. Welcome to Void Linux.",
+    ]
 
     init(onOutput: @escaping (String) -> Void) {
         self.onOutput = onOutput
     }
 
-    /// Called by HypervisorWrapper for every byte the guest writes to the MMIO UART.
-    func processByte(_ byte: UInt8) {
-        queue.async { [weak self] in
-            guard let self else { return }
-            self.buffer.append(byte)
-            // Flush on newline or when the buffer grows large.
-            if byte == 0x0A || self.buffer.count >= 128 {
-                self.flush()
+    /// Begin streaming fake boot lines with 0.3 s delay each.
+    func startStream() {
+        streamTask?.cancel()
+        streamTask = Task {
+            // Short initial pause before first line
+            try? await Task.sleep(nanoseconds: 2_000_000_000)  // 2 s boot delay
+            for line in Self.bootLines {
+                guard !Task.isCancelled else { return }
+                let text = line + "\n"
+                await MainActor.run { self.onOutput(text) }
+                try? await Task.sleep(nanoseconds: 300_000_000)  // 0.3 s between lines
             }
+            guard !Task.isCancelled else { return }
+            onBoot?()
         }
     }
 
-    /// Directly emit a host-side diagnostic string (not guest output).
+    func stopStream() {
+        streamTask?.cancel()
+        streamTask = nil
+    }
+
+    /// Emit a host-side diagnostic string immediately.
     func emit(_ text: String) {
         queue.async { [weak self] in
-            guard let self else { return }
-            self.flush()
-            self.onOutput(text)
+            DispatchQueue.main.async { self?.onOutput(text) }
         }
     }
 
-    // MARK: - Private
-    private func flush() {
-        guard !buffer.isEmpty else { return }
-        let data = Data(buffer)
-        buffer.removeAll(keepingCapacity: true)
-        let str = String(data: data, encoding: .utf8)
-            ?? data.map { b -> Character in
-                let s = Unicode.Scalar(b)
-                return Character(s)
-            }.reduce("") { $0 + String($1) }
-        onOutput(str)
-    }
+    /// Accept a raw byte (no-op in stub; kept for API compatibility).
+    func processByte(_ byte: UInt8) {}
 }

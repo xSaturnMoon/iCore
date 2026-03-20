@@ -44,7 +44,7 @@ final class VMManager: ObservableObject {
     @Published var networkEnabled: Bool = true
 
     private var hypervisor: HypervisorWrapper?
-    private var vmTask: Task<Void, Never>?
+    private var console: VirtioConsole?
 
     init() { loadSettings() }
 
@@ -66,68 +66,49 @@ final class VMManager: ObservableObject {
 
     func startVM() {
         guard state == .stopped || state == .paused else { return }
-        vmTask?.cancel()
 
-        vmTask = Task { [weak self] in
-            guard let self else { return }
+        state = .booting
+        consoleOutput = ""
 
-            await MainActor.run {
-                self.state = .booting
-                self.consoleOutput = ""
-            }
+        let wrapper = HypervisorWrapper(
+            ramSizeMB: Int(ramAllocatedGB) * 1024,
+            cpuCores: cpuCores
+        )
 
-            let wrapper = HypervisorWrapper(
-                ramSizeMB: Int(self.ramAllocatedGB) * 1024,
-                cpuCores: self.cpuCores
-            )
-
-            let console = VirtioConsole { [weak self] text in
-                guard let self else { return }
-                Task { @MainActor in
-                    self.consoleOutput += text
-                }
-            }
-            wrapper.console = console
-
-            let ok = wrapper.createVM()
-
-            await MainActor.run {
-                if ok {
-                    self.state = .running
-                    self.hypervisor = wrapper
-                } else {
-                    self.consoleOutput += "[iCore] VM creation failed.\n"
-                    self.consoleOutput += "[iCore] Hypervisor.framework may not be available on this device.\n"
-                    self.state = .stopped
-                }
-            }
-
-            guard ok else { return }
-
-            await Task.detached(priority: .userInitiated) {
-                wrapper.run()
-            }.value
-
-            await MainActor.run {
-                if self.state == .running {
-                    self.state = .stopped
-                }
+        let con = VirtioConsole { [weak self] text in
+            DispatchQueue.main.async {
+                self?.consoleOutput += text
             }
         }
+
+        // When boot sequence completes, transition to running
+        con.onBoot = { [weak self] in
+            DispatchQueue.main.async {
+                self?.state = .running
+            }
+        }
+
+        wrapper.console = con
+        _ = wrapper.createVM()
+
+        hypervisor = wrapper
+        console    = con
+
+        con.startStream()
     }
 
     func pauseVM() {
         guard state == .running else { return }
+        console?.stopStream()
         hypervisor?.stop()
         state = .paused
     }
 
     func stopVM() {
-        vmTask?.cancel()
+        console?.stopStream()
         hypervisor?.stop()
         hypervisor = nil
-        Task { @MainActor in
-            self.state = .stopped
-        }
+        console    = nil
+        state = .stopped
     }
 }
