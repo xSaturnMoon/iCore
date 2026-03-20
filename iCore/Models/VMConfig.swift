@@ -1,6 +1,6 @@
 import Foundation
 
-struct VMConfig: Codable, Identifiable, Equatable {
+struct VMConfig: Codable, Identifiable, Hashable {
     var id: UUID = UUID()
     var name: String
     var diskImagePath: String
