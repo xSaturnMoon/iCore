@@ -45,9 +45,9 @@ final class VMManager: ObservableObject {
     private var console: VirtioConsole?
 
     init(ramGB: Double, storageGB: Int, cpuCores: Int, networkEnabled: Bool) {
-        self.ramGB         = ramGB
-        self.storageGB     = storageGB
-        self.cpuCores      = cpuCores
+        self.ramGB          = ramGB
+        self.storageGB      = storageGB
+        self.cpuCores       = cpuCores
         self.networkEnabled = networkEnabled
     }
 
@@ -57,32 +57,55 @@ final class VMManager: ObservableObject {
         setState(.booting)
         consoleOutput = ""
 
-        // Memory check — clamp requested RAM to (available − 0.5 GB)
-        let monitor  = MemoryMonitor()
+        // Memory check — clamp to available - 0.5 GB
+        let monitor   = MemoryMonitor()
         let available = monitor.availableMemoryGB
         let effective: Double
-        if ramGB > available - 0.5 && available > 0.5 {
+        if available > 0.5 && ramGB > available - 0.5 {
             effective = ((available - 0.5) * 10).rounded() / 10
-            consoleOutput += "[iCore] Requested \(String(format:"%.1f",ramGB)) GB but only "
-                + "\(String(format:"%.1f",available)) GB available — clamping to "
-                + "\(String(format:"%.1f",effective)) GB\n"
+            consoleOutput += "[iCore] Requested \(String(format:"%.1f",ramGB)) GB, available \(String(format:"%.1f",available)) GB → clamping to \(String(format:"%.1f",effective)) GB\n"
         } else {
             effective = ramGB
         }
         consoleOutput += "[iCore] Memory available: \(String(format:"%.1f", available)) GB\n"
 
-        let wrapper = HypervisorWrapper(ramSizeMB: Int(effective * 1024), cpuCores: cpuCores)
+        let wrapper = HypervisorWrapper(ramGB: effective, cpuCores: cpuCores)
         let con = VirtioConsole { [weak self] text in
             DispatchQueue.main.async { self?.consoleOutput += text }
         }
-        con.onBoot = { [weak self] in
-            DispatchQueue.main.async { self?.setState(.running) }
-        }
         wrapper.console = con
-        _ = wrapper.createVM()
         hypervisor = wrapper
         console    = con
-        con.startStream()
+
+        // ── Real boot path ──────────────────────────────────────────────────
+        // Only attempted when a disk image has been provided by the user.
+        // If any step fails, we transparently fall through to demo mode.
+        // ────────────────────────────────────────────────────────────────────
+        // (diskImagePath is not stored in VMManager; check via onStateChange
+        //  caller or extend VMConfig. For this build we always try real HV
+        //  first, then fall back.)
+
+        let vmOK    = wrapper.createVM()
+        let vcpuOK  = vmOK && wrapper.createVCPU()
+
+        if vcpuOK {
+            // Real Hypervisor path — load test binary and run
+            wrapper.loadTestBinary()
+            setState(.running)
+            wrapper.runVCPU { [weak self] msg in
+                DispatchQueue.main.async {
+                    self?.consoleOutput += msg
+                    self?.setState(.stopped)
+                }
+            }
+        } else {
+            // Demo fallback — VirtioConsole fake boot sequence
+            consoleOutput += "[iCore] Hypervisor not available — running in demo mode.\n"
+            con.onBoot = { [weak self] in
+                DispatchQueue.main.async { self?.setState(.running) }
+            }
+            con.startStream()
+        }
     }
 
     // MARK: - Controls

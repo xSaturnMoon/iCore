@@ -30,3 +30,5 @@ targets:
         CODE_SIGN_ENTITLEMENTS: iCore.entitlements
         ENABLE_BITCODE: NO
         SKIP_INSTALL: NO
+        SWIFT_OBJC_BRIDGING_HEADER: iCore/VM/hypervisor_bridge.h
+        OTHER_LDFLAGS: "$(inherited) -weak_framework Hypervisor"
