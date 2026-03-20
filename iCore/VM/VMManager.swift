@@ -45,18 +45,33 @@ final class VMManager: ObservableObject {
     private var console: VirtioConsole?
 
     init(ramGB: Double, storageGB: Int, cpuCores: Int, networkEnabled: Bool) {
-        self.ramGB = ramGB
-        self.storageGB = storageGB
-        self.cpuCores = cpuCores
+        self.ramGB         = ramGB
+        self.storageGB     = storageGB
+        self.cpuCores      = cpuCores
         self.networkEnabled = networkEnabled
     }
 
+    // MARK: - Start
     func startVM() {
         guard state == .stopped || state == .paused else { return }
         setState(.booting)
         consoleOutput = ""
 
-        let wrapper = HypervisorWrapper(ramSizeMB: Int(ramGB * 1024), cpuCores: cpuCores)
+        // Memory check — clamp requested RAM to (available − 0.5 GB)
+        let monitor  = MemoryMonitor()
+        let available = monitor.availableMemoryGB
+        let effective: Double
+        if ramGB > available - 0.5 && available > 0.5 {
+            effective = ((available - 0.5) * 10).rounded() / 10
+            consoleOutput += "[iCore] Requested \(String(format:"%.1f",ramGB)) GB but only "
+                + "\(String(format:"%.1f",available)) GB available — clamping to "
+                + "\(String(format:"%.1f",effective)) GB\n"
+        } else {
+            effective = ramGB
+        }
+        consoleOutput += "[iCore] Memory available: \(String(format:"%.1f", available)) GB\n"
+
+        let wrapper = HypervisorWrapper(ramSizeMB: Int(effective * 1024), cpuCores: cpuCores)
         let con = VirtioConsole { [weak self] text in
             DispatchQueue.main.async { self?.consoleOutput += text }
         }
@@ -66,10 +81,11 @@ final class VMManager: ObservableObject {
         wrapper.console = con
         _ = wrapper.createVM()
         hypervisor = wrapper
-        console = con
+        console    = con
         con.startStream()
     }
 
+    // MARK: - Controls
     func pauseVM() {
         guard state == .running else { return }
         console?.stopStream()
@@ -81,7 +97,7 @@ final class VMManager: ObservableObject {
         console?.stopStream()
         hypervisor?.stop()
         hypervisor = nil
-        console = nil
+        console    = nil
         setState(.stopped)
         consoleOutput = ""
     }

@@ -4,6 +4,7 @@ struct VMDetailView: View {
     @EnvironmentObject var store: VMStore
     let config: VMConfig
     @ObservedObject var manager: VMManager
+    @StateObject private var mem = MemoryMonitor()
     @Environment(\.dismiss) private var dismiss
     @State private var showConsole  = false
     @State private var showSettings = false
@@ -13,15 +14,22 @@ struct VMDetailView: View {
             Color(hex: "0A0A0F").ignoresSafeArea()
             RadialGradient(colors: [Color(hex: "1A1A3A").opacity(0.6), .clear],
                            center: .top, startRadius: 0, endRadius: 500).ignoresSafeArea()
-            ScrollView(showsIndicators: false) {
-                VStack(spacing: 20) {
-                    navBar
-                    statusCard
-                    resourceBars
-                    Spacer(minLength: 20)
-                    actionButtons
+
+            VStack(spacing: 0) {
+                // Memory pressure banners (sit below nav bar)
+                memBanner
+
+                ScrollView(showsIndicators: false) {
+                    VStack(spacing: 20) {
+                        navBar
+                        statusCard
+                        resourceBars
+                        memoryCard
+                        Spacer(minLength: 20)
+                        actionButtons
+                    }
+                    .padding(.horizontal, 20).padding(.top, 8).padding(.bottom, 44)
                 }
-                .padding(.horizontal, 20).padding(.top, 16).padding(.bottom, 44)
             }
         }
         .navigationBarHidden(true)
@@ -31,6 +39,37 @@ struct VMDetailView: View {
         .navigationDestination(isPresented: $showSettings) {
             SettingsView(config: config, manager: manager).environmentObject(store)
         }
+        .onReceive(NotificationCenter.default.publisher(for: .memoryPressureCritical)) { _ in
+            // In a real app, signal the VM to pause; for now, stop it gracefully.
+            if manager.state == .running { manager.stopVM() }
+        }
+    }
+
+    // MARK: Memory banner
+    @ViewBuilder
+    private var memBanner: some View {
+        if mem.isCritical {
+            banner(icon: "circle.fill", iconColor: Color(hex: "FF3A4E"),
+                   text: "Critical memory — reducing VM allocation",
+                   bg: Color(hex: "3A0A10"))
+        } else if mem.isWarning {
+            banner(icon: "exclamationmark.triangle.fill", iconColor: Color(hex: "FFB300"),
+                   text: "Low memory — VM may be unstable",
+                   bg: Color(hex: "2A1E00"))
+        }
+    }
+
+    private func banner(icon: String, iconColor: Color, text: String, bg: Color) -> some View {
+        HStack(spacing: 10) {
+            Image(systemName: icon).font(.system(size: 13, weight: .semibold)).foregroundColor(iconColor)
+            Text(text).font(.system(size: 13, weight: .medium)).foregroundColor(.white)
+            Spacer()
+        }
+        .padding(.horizontal, 18).padding(.vertical, 10)
+        .background(bg)
+        .overlay(Rectangle().fill(iconColor.opacity(0.3)).frame(height: 1), alignment: .bottom)
+        .transition(.move(edge: .top).combined(with: .opacity))
+        .animation(.spring(response: 0.4), value: mem.isWarning || mem.isCritical)
     }
 
     // MARK: Nav bar
@@ -64,8 +103,7 @@ struct VMDetailView: View {
     private var statusCard: some View {
         HStack(spacing: 14) {
             ZStack {
-                RoundedRectangle(cornerRadius: 12).fill(manager.state.color.opacity(0.15))
-                    .frame(width: 50, height: 50)
+                RoundedRectangle(cornerRadius: 12).fill(manager.state.color.opacity(0.15)).frame(width: 50, height: 50)
                 Image(systemName: manager.state.icon)
                     .font(.system(size: 24, weight: .semibold)).foregroundColor(manager.state.color)
             }.animation(.spring(), value: manager.state)
@@ -105,17 +143,42 @@ struct VMDetailView: View {
         .padding(18).glassCard()
     }
 
+    // MARK: Live memory card
+    private var memoryCard: some View {
+        HStack(spacing: 14) {
+            ZStack {
+                RoundedRectangle(cornerRadius: 12)
+                    .fill((mem.isCritical ? Color(hex: "FF3A4E") : mem.isWarning ? Color(hex: "FFB300") : Color(hex: "4A47CC")).opacity(0.15))
+                    .frame(width: 50, height: 50)
+                Image(systemName: "gauge.with.needle")
+                    .font(.system(size: 22, weight: .semibold))
+                    .foregroundColor(mem.isCritical ? Color(hex: "FF3A4E") : mem.isWarning ? Color(hex: "FFB300") : Color(hex: "6E6BFF"))
+            }
+            VStack(alignment: .leading, spacing: 3) {
+                Text("Available RAM").font(.system(size: 12)).foregroundColor(Color(hex: "606080"))
+                HStack(alignment: .firstTextBaseline, spacing: 4) {
+                    Text(String(format: "%.2f", mem.availableMemoryGB))
+                        .font(.system(size: 20, weight: .bold, design: .rounded)).foregroundColor(.white)
+                        .contentTransition(.numericText()).animation(.easeOut(duration: 0.4), value: mem.availableMemoryGB)
+                    Text("GB free").font(.system(size: 13)).foregroundColor(Color(hex: "606080"))
+                }
+            }
+            Spacer()
+            Image(systemName: "arrow.triangle.2.circlepath")
+                .font(.system(size: 12)).foregroundColor(Color(hex: "3A3A60"))
+        }
+        .padding(18).glassCard()
+    }
+
     private func bar(label: String, icon: String, value: Double, max: Double,
                      colors: [Color], text: String) -> some View {
         VStack(alignment: .leading, spacing: 8) {
             HStack {
                 Image(systemName: icon).font(.system(size: 11, weight: .semibold))
                     .foregroundColor(colors.last ?? .white)
-                Text(label).font(.system(size: 13, weight: .semibold))
-                    .foregroundColor(Color(hex: "A0A0C0"))
+                Text(label).font(.system(size: 13, weight: .semibold)).foregroundColor(Color(hex: "A0A0C0"))
                 Spacer()
-                Text(text).font(.system(size: 12, weight: .medium, design: .monospaced))
-                    .foregroundColor(.white)
+                Text(text).font(.system(size: 12, weight: .medium, design: .monospaced)).foregroundColor(.white)
             }
             GeometryReader { g in
                 ZStack(alignment: .leading) {
