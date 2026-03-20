@@ -34,7 +34,7 @@ final class HypervisorWrapper {
     /// Returns false gracefully on simulator / devices without the entitlement.
     func createVM() -> Bool {
         let ret = hv_vm_create(nil)
-        guard ret == HV_SUCCESS else {
+        guard ret == 0 else {
             console?.emit("[HV] hv_vm_create returned \(ret) — demo mode active.\n")
             return false
         }
@@ -55,10 +55,12 @@ final class HypervisorWrapper {
         console?.emit("[HV] Guest RAM: \(alignedSz / 1024) KB allocated.\n")
 
         // Map into guest IPA space at 0x40000000
-        let gpa = UInt64(0x4000_0000)
-        let flags = UInt64(HV_MEMORY_READ) | UInt64(HV_MEMORY_WRITE) | UInt64(HV_MEMORY_EXEC)
-        let mapRet = hv_vm_map(mem, gpa, alignedSz, flags)
-        guard mapRet == HV_SUCCESS else {
+        let gpa: UInt64   = 0x4000_0000
+        let readFlag:  UInt64 = 1 << 0
+        let writeFlag: UInt64 = 1 << 1
+        let execFlag:  UInt64 = 1 << 2
+        let mapRet = hv_vm_map(mem, gpa, alignedSz, readFlag | writeFlag | execFlag)
+        guard mapRet == 0 else {
             console?.emit("[HV] hv_vm_map failed (\(mapRet)) — demo mode active.\n")
             return false
         }
@@ -70,7 +72,7 @@ final class HypervisorWrapper {
     func createVCPU() -> Bool {
         var exitPtr: UnsafeMutablePointer<hv_vcpu_exit_t>?
         let ret = hv_vcpu_create(&vcpu, &exitPtr, nil)
-        guard ret == HV_SUCCESS else {
+        guard ret == 0 else {
             console?.emit("[HV] hv_vcpu_create failed (\(ret)).\n")
             return false
         }
@@ -93,8 +95,8 @@ final class HypervisorWrapper {
                .copyMemory(from: src.baseAddress!, byteCount: data.count)
         }
         let pc = UInt64(0x4000_0000) + UInt64(kernelOffset)
-        hv_vcpu_set_reg(vcpu, HV_REG_PC, pc)
-        hv_vcpu_set_reg(vcpu, HV_REG_CPSR, 0x3C5)    // EL1h, IRQ/FIQ masked
+        hv_vcpu_set_reg(vcpu, 32, pc)     // HV_REG_PC
+        hv_vcpu_set_reg(vcpu, 33, 0x3C5) // HV_REG_CPSR — EL1h, IRQ/FIQ masked
         console?.emit("[HV] Kernel loaded: \(data.count) bytes, PC=0x\(String(pc, radix: 16))\n")
         return true
     }
@@ -108,8 +110,8 @@ final class HypervisorWrapper {
             mem.advanced(by: 0).copyMemory(from: src.baseAddress!, byteCount: src.count)
         }
         let pc = UInt64(0x4000_0000)
-        hv_vcpu_set_reg(vcpu, HV_REG_PC, pc)
-        hv_vcpu_set_reg(vcpu, HV_REG_CPSR, 0x3C5)
+        hv_vcpu_set_reg(vcpu, 32, pc)     // HV_REG_PC
+        hv_vcpu_set_reg(vcpu, 33, 0x3C5) // HV_REG_CPSR
         console?.emit("[HV] Test binary loaded (\(binary.count) bytes).\n")
     }
 
@@ -121,24 +123,23 @@ final class HypervisorWrapper {
             let uartBase = UInt64(0x0900_0000)
             while self.running {
                 let ret = hv_vcpu_run(self.vcpu)
-                guard ret == HV_SUCCESS else {
+                guard ret == 0 else {
                     onExit("[HV] vcpu_run error: \(ret)\n")
                     break
                 }
                 // Without the full exit struct definition we advance PC
                 // and handle writes to our UART MMIO address heuristically.
                 var pc: UInt64 = 0
-                hv_vcpu_get_reg(self.vcpu, HV_REG_PC, &pc)
-                // Detect UART write: if x0 is printable ASCII and pc is near UART
+                hv_vcpu_get_reg(self.vcpu, 32, &pc)  // HV_REG_PC
                 var x0: UInt64 = 0
-                hv_vcpu_get_reg(self.vcpu, HV_REG_X0, &x0)
+                hv_vcpu_get_reg(self.vcpu, 0,  &x0)  // HV_REG_X0
                 if x0 >= 0x20 && x0 < 0x7F {
                     self.console?.processByte(UInt8(x0 & 0xFF))
                 } else if x0 == 0x0A {
                     self.console?.processByte(0x0A)
                 }
                 // Advance PC past the faulting instruction
-                hv_vcpu_set_reg(self.vcpu, HV_REG_PC, pc &+ 4)
+                hv_vcpu_set_reg(self.vcpu, 32, pc &+ 4) // HV_REG_PC
 
                 // WFI / halt sentinel: x0 == 0 and pc hasn't changed
                 if x0 == 0 {
