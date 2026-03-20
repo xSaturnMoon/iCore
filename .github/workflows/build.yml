@@ -35,11 +35,13 @@ jobs:
 
       - name: Package IPA
         run: |
+          APP_PATH=$(find $RUNNER_TEMP/iCore.xcarchive \
+            -name "*.app" -type d | head -1)
           mkdir -p $RUNNER_TEMP/Payload
-          cp -r "$RUNNER_TEMP/iCore.xcarchive/Products/Applications/iCore.app" \
-            $RUNNER_TEMP/Payload/
+          cp -r "$APP_PATH" $RUNNER_TEMP/Payload/
           cd $RUNNER_TEMP
-          zip -r iCore.ipa Payload
+          zip -r iCore.ipa Payload/
+          ls -la iCore.ipa
 
       - name: Upload IPA artifact
         uses: actions/upload-artifact@v4
