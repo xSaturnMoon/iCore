@@ -48,8 +48,9 @@ struct AddVMView: View {
             }
             .navigationBarHidden(true)
             .fileImporter(isPresented: $showPicker,
-                          allowedContentTypes: [UTType(filenameExtension: "img") ?? .data,
-                                                UTType(filenameExtension: "qcow2") ?? .data],
+                          allowedContentTypes: [UTType(filenameExtension: "img")   ?? .data,
+                                                UTType(filenameExtension: "qcow2") ?? .data,
+                                                UTType(filenameExtension: "iso")   ?? .data],
                           allowsMultipleSelection: false) { result in
                 if case .success(let urls) = result, let url = urls.first {
                     diskPath = url.path; diskName = url.lastPathComponent

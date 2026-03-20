@@ -20,8 +20,9 @@ targets:
     sources:
       - path: iCore
         excludes:
+          - Resources/**
           - Libraries/**
-      - path: iCore/Libraries
+      - path: iCore/Resources
         type: folder
         optional: true
     settings:

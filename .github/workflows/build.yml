@@ -16,21 +16,24 @@ jobs:
       - name: Install XcodeGen
         run: brew install xcodegen
 
-      - name: Download UTM QEMU libraries
+      - name: Download QEMU binary for iOS
         run: |
-          curl -L https://github.com/utmapp/UTM/releases/latest/download/UTM.ipa \
+          curl -L "https://github.com/utmapp/UTM/releases/download/v4.5.0/UTM.ipa" \
             -o utm.ipa
-          unzip utm.ipa -d utm_extracted || true
-          mkdir -p iCore/Libraries
-          cp -r utm_extracted/Payload/UTM.app/Libraries/. iCore/Libraries/ 2>/dev/null || true
-          # Also grab the QEMU binary if present at various known paths
-          for qbin in \
-            utm_extracted/Payload/UTM.app/qemu-system-aarch64 \
-            utm_extracted/Payload/UTM.app/Jailbreak/qemu-system-aarch64 \
-            utm_extracted/Payload/UTM.app/Libraries/qemu-system-aarch64; do
-            [ -f "$qbin" ] && cp "$qbin" iCore/Libraries/ && echo "Copied QEMU from $qbin" && break
-          done
-          ls -lh iCore/Libraries/ || echo "Libraries directory empty or not found"
+          unzip -o utm.ipa "Payload/UTM.app/qemu-system-aarch64" \
+            -d utm_out || true
+          unzip -o utm.ipa "Payload/UTM.app/Libraries/qemu-system-aarch64" \
+            -d utm_out || true
+          find utm_out -name "qemu-system-aarch64" -type f
+          mkdir -p iCore/Resources
+          find utm_out -name "qemu-system-aarch64" -type f \
+            -exec cp {} iCore/Resources/qemu-system-aarch64 \;
+          ls -lh iCore/Resources/
+
+      - name: Verify QEMU binary
+        run: |
+          ls -lh iCore/Resources/ || echo "Resources folder empty!"
+          file iCore/Resources/qemu-system-aarch64 || echo "Binary not found!"
 
       - name: Generate Xcode project
         run: xcodegen generate
