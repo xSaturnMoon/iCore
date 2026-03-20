@@ -2,12 +2,12 @@ import SwiftUI
 
 @main
 struct iCoreApp: App {
-    @StateObject private var vm = VMManager()
+    @StateObject private var store = VMStore()
 
     var body: some Scene {
         WindowGroup {
-            DashboardView()
-                .environmentObject(vm)
+            VMListView()
+                .environmentObject(store)
                 .preferredColorScheme(.dark)
         }
     }

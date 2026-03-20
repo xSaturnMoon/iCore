@@ -1,34 +1,29 @@
 import SwiftUI
-import Foundation
 
 // MARK: - VM State
-enum VMState: Equatable {
-    case stopped, booting, running, paused
+enum VMState: String, Equatable {
+    case stopped = "stopped"
+    case booting = "booting"
+    case running = "running"
+    case paused  = "paused"
 
-    var label: String {
-        switch self {
-        case .stopped: return "STOPPED"
-        case .booting:  return "BOOTING"
-        case .running:  return "RUNNING"
-        case .paused:   return "PAUSED"
-        }
-    }
+    var label: String { rawValue.uppercased() }
 
     var color: Color {
         switch self {
         case .stopped: return Color(red: 1.0, green: 0.30, blue: 0.42)
-        case .booting:  return Color(red: 1.0, green: 0.70, blue: 0.00)
-        case .running:  return Color(red: 0.00, green: 0.90, blue: 0.46)
-        case .paused:   return Color(red: 1.0, green: 0.70, blue: 0.00)
+        case .booting: return Color(red: 1.0, green: 0.70, blue: 0.00)
+        case .running: return Color(red: 0.00, green: 0.90, blue: 0.46)
+        case .paused:  return Color(red: 1.0, green: 0.70, blue: 0.00)
         }
     }
 
     var icon: String {
         switch self {
         case .stopped: return "stop.circle.fill"
-        case .booting:  return "arrow.triangle.2.circlepath"
-        case .running:  return "checkmark.circle.fill"
-        case .paused:   return "pause.circle.fill"
+        case .booting: return "arrow.triangle.2.circlepath"
+        case .running: return "checkmark.circle.fill"
+        case .paused:  return "pause.circle.fill"
         }
     }
 }
@@ -37,63 +32,41 @@ enum VMState: Equatable {
 final class VMManager: ObservableObject {
     @Published var state: VMState = .stopped
     @Published var consoleOutput: String = ""
-    @Published var ramAllocatedGB: Double = 4.0
-    @Published var storageAllocatedGB: Double = 16.0
-    @Published var diskUsedGB: Double = 0.0
-    @Published var cpuCores: Int = 2
-    @Published var networkEnabled: Bool = true
+
+    var ramGB: Double
+    var storageGB: Int
+    var cpuCores: Int
+    var networkEnabled: Bool
+    var diskUsedGB: Double = 0
+
+    var onStateChange: ((String) -> Void)?
 
     private var hypervisor: HypervisorWrapper?
     private var console: VirtioConsole?
 
-    init() { loadSettings() }
-
-    func loadSettings() {
-        let d = UserDefaults.standard
-        let ram = d.double(forKey: "ram_gb")
-        ramAllocatedGB = ram > 0 ? ram : 4.0
-
-        let storage = d.double(forKey: "storage_gb")
-        storageAllocatedGB = storage >= 8 ? storage : 16.0
-
-        let cores = d.integer(forKey: "cpu_cores")
-        cpuCores = [1, 2, 4].contains(cores) ? cores : 2
-
-        if d.object(forKey: "network_enabled") != nil {
-            networkEnabled = d.bool(forKey: "network_enabled")
-        }
+    init(ramGB: Double, storageGB: Int, cpuCores: Int, networkEnabled: Bool) {
+        self.ramGB = ramGB
+        self.storageGB = storageGB
+        self.cpuCores = cpuCores
+        self.networkEnabled = networkEnabled
     }
 
     func startVM() {
         guard state == .stopped || state == .paused else { return }
-
-        state = .booting
+        setState(.booting)
         consoleOutput = ""
 
-        let wrapper = HypervisorWrapper(
-            ramSizeMB: Int(ramAllocatedGB) * 1024,
-            cpuCores: cpuCores
-        )
-
+        let wrapper = HypervisorWrapper(ramSizeMB: Int(ramGB * 1024), cpuCores: cpuCores)
         let con = VirtioConsole { [weak self] text in
-            DispatchQueue.main.async {
-                self?.consoleOutput += text
-            }
+            DispatchQueue.main.async { self?.consoleOutput += text }
         }
-
-        // When boot sequence completes, transition to running
         con.onBoot = { [weak self] in
-            DispatchQueue.main.async {
-                self?.state = .running
-            }
+            DispatchQueue.main.async { self?.setState(.running) }
         }
-
         wrapper.console = con
         _ = wrapper.createVM()
-
         hypervisor = wrapper
-        console    = con
-
+        console = con
         con.startStream()
     }
 
@@ -101,14 +74,20 @@ final class VMManager: ObservableObject {
         guard state == .running else { return }
         console?.stopStream()
         hypervisor?.stop()
-        state = .paused
+        setState(.paused)
     }
 
     func stopVM() {
         console?.stopStream()
         hypervisor?.stop()
         hypervisor = nil
-        console    = nil
-        state = .stopped
+        console = nil
+        setState(.stopped)
+        consoleOutput = ""
+    }
+
+    private func setState(_ s: VMState) {
+        state = s
+        onStateChange?(s.rawValue)
     }
 }

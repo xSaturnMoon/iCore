@@ -1,44 +1,38 @@
 import SwiftUI
 
 struct SettingsView: View {
-    @EnvironmentObject var vm: VMManager
+    @EnvironmentObject var store: VMStore
     @Environment(\.dismiss) private var dismiss
 
-    // RAM in 0.5 GB steps: 1.0 … 6.0
-    private let ramOptions: [Double] = stride(from: 1.0, through: 6.0, by: 0.5).map { $0 }
-    @State private var selectedRAMIndex: Int = 6   // default 4.0 GB (index 6)
-    @State private var storage: Double = 16
-    @State private var cores: Int = 2
-    @State private var networkEnabled: Bool = true
+    let config: VMConfig
+    @ObservedObject var manager: VMManager
 
-    private var selectedRAM: Double { ramOptions[selectedRAMIndex] }
+    @State private var ramGB: Double = 4.0
+    @State private var storageGB: Double = 32
+    @State private var cpuCores = 2
+    @State private var netEnabled = true
 
     var body: some View {
         ZStack {
             Color(hex: "0A0A0F").ignoresSafeArea()
-            RadialGradient(
-                colors: [Color(hex: "1A1A3A").opacity(0.5), .clear],
-                center: .top, startRadius: 0, endRadius: 400
-            ).ignoresSafeArea()
-
+            RadialGradient(colors: [Color(hex: "1A1A3A").opacity(0.45), .clear],
+                           center: .top, startRadius: 0, endRadius: 400).ignoresSafeArea()
             VStack(spacing: 0) {
                 navBar
                 ScrollView(showsIndicators: false) {
-                    VStack(spacing: 10) {
+                    VStack(spacing: 14) {
                         ramSection
                         storageSection
                         cpuSection
                         networkSection
                         saveButton
                     }
-                    .padding(.horizontal, 20)
-                    .padding(.top, 12)
-                    .padding(.bottom, 48)
+                    .padding(.horizontal, 20).padding(.top, 16).padding(.bottom, 48)
                 }
             }
         }
         .navigationBarHidden(true)
-        .onAppear(perform: loadSettings)
+        .onAppear { load() }
     }
 
     // MARK: Nav bar
@@ -46,92 +40,68 @@ struct SettingsView: View {
         HStack {
             Button { dismiss() } label: {
                 HStack(spacing: 5) {
-                    Image(systemName: "chevron.left")
-                        .font(.system(size: 14, weight: .semibold))
-                    Text("Back")
-                        .font(.system(size: 15, weight: .medium))
-                }
-                .foregroundColor(Color(hex: "6E6BFF"))
-            }
-            .buttonStyle(.plain)
+                    Image(systemName: "chevron.left").font(.system(size: 14, weight: .semibold))
+                    Text("Back").font(.system(size: 15, weight: .medium))
+                }.foregroundColor(Color(hex: "6E6BFF"))
+            }.buttonStyle(.plain)
             Spacer()
-            Text("Settings")
-                .font(.system(size: 17, weight: .semibold))
-                .foregroundColor(.white)
+            Text("Settings").font(.system(size: 17, weight: .semibold)).foregroundColor(.white)
             Spacer()
-            // Balance
             Text("Back").opacity(0)
-        }
-        .padding(.horizontal, 20)
-        .padding(.vertical, 14)
+        }.padding(.horizontal, 20).padding(.vertical, 14)
     }
 
-    // MARK: RAM Section
+    // MARK: RAM
     private var ramSection: some View {
-        settingsSection(header: "Memory") {
-            VStack(alignment: .leading, spacing: 16) {
-                // Big value display
-                HStack(alignment: .firstTextBaseline, spacing: 4) {
-                    Text(String(format: "%.1f", selectedRAM))
-                        .font(.system(size: 48, weight: .bold, design: .rounded))
-                        .foregroundColor(.white)
-                        .contentTransition(.numericText())
-                        .animation(.spring(response: 0.3), value: selectedRAMIndex)
-                    Text("GB")
-                        .font(.system(size: 22, weight: .semibold, design: .rounded))
-                        .foregroundColor(Color(hex: "4A47CC"))
-                        .padding(.bottom, 4)
-                }
-
-                // Warning
-                if selectedRAM > 5.0 {
-                    Label("High allocation may degrade host performance.", systemImage: "exclamationmark.triangle.fill")
-                        .font(.system(size: 12, weight: .medium))
-                        .foregroundColor(Color(hex: "FFB300"))
-                        .transition(.move(edge: .top).combined(with: .opacity))
-                }
-
-                // Picker wheel
-                Picker("RAM", selection: $selectedRAMIndex) {
-                    ForEach(ramOptions.indices, id: \.self) { i in
-                        Text(String(format: "%.1f GB", ramOptions[i]))
-                            .font(.system(size: 15, weight: .medium, design: .rounded))
-                            .tag(i)
+        settingBlock(header: "Memory") {
+            HStack {
+                VStack(alignment: .leading, spacing: 4) {
+                    HStack(alignment: .firstTextBaseline, spacing: 3) {
+                        Text(String(format: "%.1f", ramGB))
+                            .font(.system(size: 40, weight: .bold, design: .rounded)).foregroundColor(.white)
+                            .contentTransition(.numericText()).animation(.spring(response: 0.25), value: ramGB)
+                        Text("GB").font(.system(size: 20, weight: .semibold)).foregroundColor(Color(hex: "4A47CC"))
+                    }
+                    if ramGB > 5.0 {
+                        Text("High RAM may affect iPad performance")
+                            .font(.system(size: 12)).foregroundColor(Color(hex: "FFB300"))
+                            .transition(.opacity)
                     }
                 }
-                .pickerStyle(.wheel)
-                .frame(height: 120)
-                .clipped()
-                .tint(Color(hex: "6E6BFF"))
-            }
-            .animation(.spring(response: 0.35), value: selectedRAM > 5.0)
+                Spacer()
+                HStack(spacing: 0) {
+                    stepperBtn("-") { if ramGB > 1.0 { ramGB = (ramGB - 0.1).rounded1dp } }
+                    Text(String(format: "%.1f", ramGB))
+                        .font(.system(size: 13, weight: .semibold, design: .monospaced))
+                        .foregroundColor(.white).frame(width: 46).multilineTextAlignment(.center)
+                    stepperBtn("+") { if ramGB < 6.0 { ramGB = (ramGB + 0.1).rounded1dp } }
+                }
+                .background(Color(hex: "1A1A2E")).clipShape(RoundedRectangle(cornerRadius: 12))
+                .overlay(RoundedRectangle(cornerRadius: 12).stroke(Color(hex: "2A2A44"), lineWidth: 1))
+            }.animation(.spring(response: 0.3), value: ramGB > 5.0)
         }
     }
 
-    // MARK: Storage Section
+    private func stepperBtn(_ label: String, action: @escaping () -> Void) -> some View {
+        Button(action: action) {
+            Text(label).font(.system(size: 18, weight: .bold)).foregroundColor(Color(hex: "6E6BFF"))
+                .frame(width: 40, height: 40)
+        }.buttonStyle(.plain)
+    }
+
+    // MARK: Storage
     private var storageSection: some View {
-        settingsSection(header: "Storage") {
-            VStack(alignment: .leading, spacing: 14) {
-                HStack(alignment: .firstTextBaseline, spacing: 4) {
-                    Text("\(Int(storage))")
-                        .font(.system(size: 48, weight: .bold, design: .rounded))
-                        .foregroundColor(.white)
-                        .contentTransition(.numericText())
-                        .animation(.spring(response: 0.3), value: storage)
-                    Text("GB")
-                        .font(.system(size: 22, weight: .semibold, design: .rounded))
-                        .foregroundColor(Color(hex: "CC47A0"))
-                        .padding(.bottom, 4)
+        settingBlock(header: "Storage") {
+            VStack(alignment: .leading, spacing: 10) {
+                HStack(alignment: .firstTextBaseline, spacing: 3) {
+                    Text("\(Int(storageGB))")
+                        .font(.system(size: 40, weight: .bold, design: .rounded)).foregroundColor(.white)
+                        .contentTransition(.numericText()).animation(.spring(response: 0.25), value: storageGB)
+                    Text("GB").font(.system(size: 20, weight: .semibold)).foregroundColor(Color(hex: "CC47A0"))
                 }
-
-                Slider(value: $storage, in: 8...128, step: 8)
-                    .tint(
-                        LinearGradient(
-                            colors: [Color(hex: "CC47A0"), Color(hex: "FF78D8")],
-                            startPoint: .leading, endPoint: .trailing
-                        )
-                    )
-
+                Slider(value: $storageGB, in: 8...128, step: 8)
+                    .tint(LinearGradient(colors: [Color(hex: "CC47A0"), Color(hex: "FF78D8")],
+                                         startPoint: .leading, endPoint: .trailing))
                 HStack {
                     Text("8 GB").font(.caption).foregroundColor(Color(hex: "505070"))
                     Spacer()
@@ -141,138 +111,99 @@ struct SettingsView: View {
         }
     }
 
-    // MARK: CPU Section
+    // MARK: CPU
     private var cpuSection: some View {
-        settingsSection(header: "CPU Cores") {
+        settingBlock(header: "CPU Cores") {
             HStack(spacing: 10) {
                 ForEach([1, 2, 4], id: \.self) { n in
-                    Button { cores = n } label: {
-                        VStack(spacing: 4) {
-                            Text("\(n)")
-                                .font(.system(size: 24, weight: .bold, design: .rounded))
-                            Text(n == 1 ? "core" : "cores")
-                                .font(.system(size: 11, weight: .medium))
+                    Button { cpuCores = n } label: {
+                        VStack(spacing: 3) {
+                            Text("\(n)").font(.system(size: 22, weight: .bold, design: .rounded))
+                            Text(n == 1 ? "core" : "cores").font(.system(size: 11))
                         }
-                        .frame(maxWidth: .infinity)
-                        .frame(height: 64)
-                        .background(cores == n
+                        .frame(maxWidth: .infinity).frame(height: 58)
+                        .background(cpuCores == n
                             ? LinearGradient(colors: [Color(hex: "4A47CC"), Color(hex: "6E6BFF")],
                                              startPoint: .topLeading, endPoint: .bottomTrailing)
                             : LinearGradient(colors: [Color(hex: "1A1A2E"), Color(hex: "1A1A2E")],
                                              startPoint: .topLeading, endPoint: .bottomTrailing))
-                        .foregroundColor(cores == n ? .white : Color(hex: "606080"))
-                        .clipShape(RoundedRectangle(cornerRadius: 14))
-                        .overlay(
-                            RoundedRectangle(cornerRadius: 14)
-                                .stroke(cores == n ? Color(hex: "6E6BFF").opacity(0.6) : Color(hex: "2A2A44"), lineWidth: 1)
-                        )
-                        .shadow(color: cores == n ? Color(hex: "4A47CC").opacity(0.4) : .clear, radius: 8, y: 3)
-                    }
-                    .buttonStyle(.plain)
-                    .animation(.spring(response: 0.3), value: cores)
+                        .foregroundColor(cpuCores == n ? .white : Color(hex: "606080"))
+                        .clipShape(RoundedRectangle(cornerRadius: 12))
+                        .overlay(RoundedRectangle(cornerRadius: 12)
+                            .stroke(cpuCores == n ? Color(hex: "6E6BFF").opacity(0.5) : Color(hex: "2A2A44"), lineWidth: 1))
+                    }.buttonStyle(.plain).animation(.spring(response: 0.25), value: cpuCores)
                 }
             }
         }
     }
 
-    // MARK: Network Section
+    // MARK: Network
     private var networkSection: some View {
-        settingsSection(header: "Network") {
-            Toggle(isOn: $networkEnabled) {
-                HStack(spacing: 12) {
-                    ZStack {
-                        RoundedRectangle(cornerRadius: 8)
-                            .fill(Color(hex: "1E2E50"))
-                            .frame(width: 34, height: 34)
-                        Image(systemName: "network")
-                            .font(.system(size: 16, weight: .semibold))
-                            .foregroundColor(Color(hex: "6E6BFF"))
-                    }
-                    VStack(alignment: .leading, spacing: 2) {
-                        Text("Virtual Network Interface")
-                            .font(.system(size: 15, weight: .medium))
-                            .foregroundColor(.white)
-                        Text("eth0 (192.168.64.x)")
-                            .font(.system(size: 12))
-                            .foregroundColor(Color(hex: "505070"))
-                    }
+        settingBlock(header: "Network") {
+            Toggle(isOn: $netEnabled) {
+                HStack(spacing: 10) {
+                    Image(systemName: "network").foregroundColor(Color(hex: "6E6BFF"))
+                    Text("Virtual Network Interface").font(.system(size: 15, weight: .medium)).foregroundColor(.white)
                 }
-            }
-            .tint(Color(hex: "6E6BFF"))
+            }.tint(Color(hex: "6E6BFF"))
         }
     }
 
-    // MARK: Save Button
+    // MARK: Save
     private var saveButton: some View {
         Button(action: saveAndRestart) {
-            HStack(spacing: 10) {
-                Image(systemName: "arrow.clockwise")
-                    .font(.system(size: 15, weight: .bold))
-                Text("Save & Restart")
-                    .font(.system(size: 16, weight: .bold, design: .rounded))
+            HStack(spacing: 8) {
+                Image(systemName: "arrow.clockwise").font(.system(size: 14, weight: .bold))
+                Text("Save & Restart").font(.system(size: 16, weight: .bold, design: .rounded))
             }
-            .frame(maxWidth: .infinity)
-            .frame(height: 54)
-            .background(
-                LinearGradient(colors: [Color(hex: "4A47CC"), Color(hex: "6E6BFF")],
-                               startPoint: .topLeading, endPoint: .bottomTrailing)
-            )
-            .foregroundColor(.white)
-            .clipShape(RoundedRectangle(cornerRadius: 16))
-            .shadow(color: Color(hex: "4A47CC").opacity(0.5), radius: 14, y: 5)
-        }
-        .buttonStyle(.plain)
-        .padding(.top, 8)
+            .frame(maxWidth: .infinity).frame(height: 54)
+            .background(LinearGradient(colors: [Color(hex: "4A47CC"), Color(hex: "6E6BFF")],
+                                       startPoint: .topLeading, endPoint: .bottomTrailing))
+            .foregroundColor(.white).clipShape(RoundedRectangle(cornerRadius: 16))
+            .shadow(color: Color(hex: "4A47CC").opacity(0.45), radius: 12, y: 4)
+        }.buttonStyle(.plain).padding(.top, 6)
     }
 
-    // MARK: - Helpers
+    // MARK: Helpers
     @ViewBuilder
-    private func settingsSection<Content: View>(header: String, @ViewBuilder _ content: () -> Content) -> some View {
-        VStack(alignment: .leading, spacing: 0) {
+    private func settingBlock<C: View>(header: String, @ViewBuilder _ content: () -> C) -> some View {
+        VStack(alignment: .leading, spacing: 6) {
             Text(header.uppercased())
-                .font(.system(size: 11, weight: .semibold))
-                .foregroundColor(Color(hex: "505070"))
-                .tracking(1.2)
-                .padding(.horizontal, 6)
-                .padding(.bottom, 6)
-
-            content()
-                .padding(18)
-                .glassCard()
+                .font(.system(size: 11, weight: .semibold)).foregroundColor(Color(hex: "505070")).tracking(1)
+                .padding(.horizontal, 4)
+            content().padding(16).glassCard()
         }
     }
 
-    private func loadSettings() {
-        let d = UserDefaults.standard
-        let savedRAM = d.double(forKey: "ram_gb")
-        if let idx = ramOptions.firstIndex(of: savedRAM) {
-            selectedRAMIndex = idx
-        } else {
-            selectedRAMIndex = ramOptions.firstIndex(of: 4.0) ?? 6
-        }
-        let s = d.double(forKey: "storage_gb")
-        storage = s >= 8 ? min(s, 128) : 16
-
-        let c = d.integer(forKey: "cpu_cores")
-        cores = [1, 2, 4].contains(c) ? c : 2
-
-        networkEnabled = d.object(forKey: "network_enabled") == nil
-            ? true : d.bool(forKey: "network_enabled")
+    private func load() {
+        ramGB      = manager.ramGB
+        storageGB  = Double(manager.storageGB)
+        cpuCores   = manager.cpuCores
+        netEnabled = manager.networkEnabled
     }
 
     private func saveAndRestart() {
-        let d = UserDefaults.standard
-        d.set(selectedRAM,   forKey: "ram_gb")
-        d.set(storage,       forKey: "storage_gb")
-        d.set(cores,         forKey: "cpu_cores")
-        d.set(networkEnabled,forKey: "network_enabled")
-        d.synchronize()
+        manager.ramGB          = ramGB
+        manager.storageGB      = Int(storageGB)
+        manager.cpuCores       = cpuCores
+        manager.networkEnabled = netEnabled
 
-        vm.stopVM()
+        // Persist to store
+        var updated = config
+        updated.ramGB          = ramGB
+        updated.storageGB      = Int(storageGB)
+        updated.cpuCores       = cpuCores
+        updated.networkEnabled = netEnabled
+        store.update(updated)
+
+        manager.stopVM()
         DispatchQueue.main.asyncAfter(deadline: .now() + 0.4) {
-            vm.loadSettings()
-            vm.startVM()
+            manager.startVM()
         }
         dismiss()
     }
+}
+
+private extension Double {
+    var rounded1dp: Double { (self * 10).rounded() / 10 }
 }
