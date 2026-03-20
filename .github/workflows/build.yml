@@ -16,6 +16,22 @@ jobs:
       - name: Install XcodeGen
         run: brew install xcodegen
 
+      - name: Download UTM QEMU libraries
+        run: |
+          curl -L https://github.com/utmapp/UTM/releases/latest/download/UTM.ipa \
+            -o utm.ipa
+          unzip utm.ipa -d utm_extracted || true
+          mkdir -p iCore/Libraries
+          cp -r utm_extracted/Payload/UTM.app/Libraries/. iCore/Libraries/ 2>/dev/null || true
+          # Also grab the QEMU binary if present at various known paths
+          for qbin in \
+            utm_extracted/Payload/UTM.app/qemu-system-aarch64 \
+            utm_extracted/Payload/UTM.app/Jailbreak/qemu-system-aarch64 \
+            utm_extracted/Payload/UTM.app/Libraries/qemu-system-aarch64; do
+            [ -f "$qbin" ] && cp "$qbin" iCore/Libraries/ && echo "Copied QEMU from $qbin" && break
+          done
+          ls -lh iCore/Libraries/ || echo "Libraries directory empty or not found"
+
       - name: Generate Xcode project
         run: xcodegen generate
 
