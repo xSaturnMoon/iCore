@@ -13,7 +13,6 @@ jobs:
       - name: Checkout
         uses: actions/checkout@v4
 
-
       - name: Install XcodeGen
         run: brew install xcodegen
 
@@ -26,7 +25,7 @@ jobs:
             -project iCore.xcodeproj \
             -scheme iCore \
             -destination "generic/platform=iOS" \
-            -archivePath $RUNNER_TEMP/iCore.xcarchive \
+            -archivePath "$HOME/iCore.xcarchive" \
             CODE_SIGNING_ALLOWED=NO \
             CODE_SIGNING_REQUIRED=NO \
             CODE_SIGN_IDENTITY="" \
@@ -35,16 +34,16 @@ jobs:
 
       - name: Package IPA
         run: |
-          APP_PATH=$(find $RUNNER_TEMP/iCore.xcarchive \
-            -name "*.app" -type d | head -1)
-          mkdir -p $RUNNER_TEMP/Payload
-          cp -r "$APP_PATH" $RUNNER_TEMP/Payload/
-          cd $RUNNER_TEMP
+          APP_PATH=$(find "$HOME/iCore.xcarchive" -name "*.app" -type d | head -1)
+          echo "Found app at: $APP_PATH"
+          mkdir -p "$HOME/Payload"
+          cp -r "$APP_PATH" "$HOME/Payload/"
+          cd "$HOME"
           zip -r iCore.ipa Payload/
-          ls -la iCore.ipa
+          ls -lh "$HOME/iCore.ipa"
 
-      - name: Upload IPA artifact
+      - name: Upload IPA
         uses: actions/upload-artifact@v4
         with:
           name: iCore-ipa
-          path: $RUNNER_TEMP/iCore.ipa
+          path: ~/iCore.ipa
