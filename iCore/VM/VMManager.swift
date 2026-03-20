@@ -85,8 +85,9 @@ final class VMManager: ObservableObject {
         //  caller or extend VMConfig. For this build we always try real HV
         //  first, then fall back.)
 
-        let vmOK    = wrapper.createVM()
-        let vcpuOK  = vmOK && wrapper.createVCPU()
+        let fwOK    = wrapper.loadFramework()
+        let vmOK    = fwOK   && wrapper.createVM()
+        let vcpuOK  = vmOK   && wrapper.createVCPU()
 
         if vcpuOK {
             // Real Hypervisor path — load test binary and run
