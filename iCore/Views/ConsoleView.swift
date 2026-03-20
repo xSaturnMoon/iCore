@@ -72,7 +72,7 @@ struct ConsoleView: View {
                 .frame(maxWidth: .infinity, alignment: .leading).padding(16)
             }
             .background(Color.black)
-            .onChange(of: manager.consoleOutput) { _ in
+            .onChange(of: manager.consoleOutput) { _, _ in
                 if autoScroll {
                     withAnimation(.easeOut(duration: 0.1)) { proxy.scrollTo("bottom", anchor: .bottom) }
                 }
