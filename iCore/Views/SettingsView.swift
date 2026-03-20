@@ -4,233 +4,228 @@ struct SettingsView: View {
     @EnvironmentObject var vm: VMManager
     @Environment(\.dismiss) private var dismiss
 
-    @AppStorage("ram_gb") private var ramGB: Double = 4.0
-    @AppStorage("storage_gb") private var storageGB: Double = 16.0
-    @AppStorage("cpu_cores") private var cpuCores: Int = 2
-    @AppStorage("network_enabled") private var networkEnabled: Bool = true
+    @State private var ram: Double = 4
+    @State private var storage: Double = 16
+    @State private var cores: Int = 2
+    @State private var networkEnabled: Bool = true
 
-    @State private var showRestartAlert = false
+    let coreOptions = [1, 2, 4]
 
     var body: some View {
         ZStack {
-            Color(hex: "0D0D1A").ignoresSafeArea()
-
-            ScrollView {
-                VStack(spacing: 24) {
-                    settingsHeader
-                    ramSection
-                    storageSection
-                    cpuSection
-                    networkSection
-                    saveButton
-                    Spacer().frame(height: 40)
-                }
-                .padding(.horizontal, 40)
-                .padding(.top, 20)
-            }
-        }
-        .navigationBarBackButtonHidden(true)
-        .toolbar {
-            ToolbarItem(placement: .navigationBarLeading) {
-                Button {
-                    dismiss()
-                } label: {
-                    HStack(spacing: 6) {
-                        Image(systemName: "chevron.left")
-                        Text("Dashboard")
-                    }
-                    .foregroundColor(Color(hex: "6C63FF"))
-                }
-            }
-        }
-        .alert("Restart VM?", isPresented: $showRestartAlert) {
-            Button("Cancel", role: .cancel) { }
-            Button("Restart", role: .destructive) {
-                vm.restartVM()
-                dismiss()
-            }
-        } message: {
-            Text("Settings saved. The VM will restart with the new configuration.")
-        }
-    }
-
-    // MARK: - Header
-    private var settingsHeader: some View {
-        HStack(spacing: 12) {
-            Image(systemName: "gearshape.2.fill")
-                .font(.system(size: 28))
-                .foregroundStyle(
-                    LinearGradient(
-                        colors: [Color(hex: "6C63FF"), Color(hex: "3F8EFC")],
-                        startPoint: .topLeading,
-                        endPoint: .bottomTrailing
-                    )
-                )
-            Text("Settings")
-                .font(.system(size: 32, weight: .bold, design: .rounded))
-                .foregroundColor(.white)
-            Spacer()
-        }
-    }
-
-    // MARK: - RAM Section
-    private var ramSection: some View {
-        SettingsCard {
-            VStack(alignment: .leading, spacing: 12) {
-                HStack {
-                    Label("RAM", systemImage: "memorychip")
-                        .font(.system(size: 16, weight: .semibold, design: .rounded))
-                        .foregroundColor(.white)
-                    Spacer()
-                    Text(String(format: "%.0f GB", ramGB))
-                        .font(.system(size: 16, weight: .bold, design: .monospaced))
-                        .foregroundColor(Color(hex: "6C63FF"))
-                }
-
-                Slider(value: $ramGB, in: 1...6, step: 1)
-                    .tint(Color(hex: "6C63FF"))
-
-                HStack {
-                    Text("1 GB")
-                    Spacer()
-                    Text("6 GB")
-                }
-                .font(.system(size: 12, weight: .medium, design: .monospaced))
-                .foregroundColor(Color(hex: "8B8BA7"))
-
-                if ramGB > 5 {
-                    HStack(spacing: 8) {
-                        Image(systemName: "exclamationmark.triangle.fill")
-                            .foregroundColor(Color(hex: "FFB300"))
-                        Text("High RAM may affect iPad performance")
-                            .font(.system(size: 13, weight: .medium, design: .rounded))
-                            .foregroundColor(Color(hex: "FFB300"))
-                    }
-                    .padding(12)
-                    .frame(maxWidth: .infinity, alignment: .leading)
-                    .background(
-                        RoundedRectangle(cornerRadius: 10)
-                            .fill(Color(hex: "FFB300").opacity(0.1))
-                    )
-                    .transition(.opacity.combined(with: .move(edge: .top)))
-                    .animation(.easeInOut(duration: 0.3), value: ramGB)
-                }
-            }
-        }
-    }
-
-    // MARK: - Storage Section
-    private var storageSection: some View {
-        SettingsCard {
-            VStack(alignment: .leading, spacing: 12) {
-                HStack {
-                    Label("Storage", systemImage: "internaldrive")
-                        .font(.system(size: 16, weight: .semibold, design: .rounded))
-                        .foregroundColor(.white)
-                    Spacer()
-                    Text(String(format: "%.0f GB", storageGB))
-                        .font(.system(size: 16, weight: .bold, design: .monospaced))
-                        .foregroundColor(Color(hex: "3F8EFC"))
-                }
-
-                Slider(value: $storageGB, in: 8...64, step: 4)
-                    .tint(Color(hex: "3F8EFC"))
-
-                HStack {
-                    Text("8 GB")
-                    Spacer()
-                    Text("64 GB")
-                }
-                .font(.system(size: 12, weight: .medium, design: .monospaced))
-                .foregroundColor(Color(hex: "8B8BA7"))
-            }
-        }
-    }
-
-    // MARK: - CPU Section
-    private var cpuSection: some View {
-        SettingsCard {
-            VStack(alignment: .leading, spacing: 12) {
-                Label("CPU Cores", systemImage: "cpu")
-                    .font(.system(size: 16, weight: .semibold, design: .rounded))
-                    .foregroundColor(.white)
-
-                Picker("CPU Cores", selection: $cpuCores) {
-                    Text("1 Core").tag(1)
-                    Text("2 Cores").tag(2)
-                    Text("4 Cores").tag(4)
-                }
-                .pickerStyle(.segmented)
-                .colorMultiply(Color(hex: "6C63FF"))
-            }
-        }
-    }
-
-    // MARK: - Network Section
-    private var networkSection: some View {
-        SettingsCard {
-            Toggle(isOn: $networkEnabled) {
-                Label("Network", systemImage: networkEnabled ? "wifi" : "wifi.slash")
-                    .font(.system(size: 16, weight: .semibold, design: .rounded))
-                    .foregroundColor(.white)
-            }
-            .tint(Color(hex: "6C63FF"))
-        }
-    }
-
-    // MARK: - Save Button
-    private var saveButton: some View {
-        Button {
-            UserDefaults.standard.set(ramGB, forKey: "ram_gb")
-            UserDefaults.standard.set(storageGB, forKey: "storage_gb")
-            UserDefaults.standard.set(cpuCores, forKey: "cpu_cores")
-            UserDefaults.standard.set(networkEnabled, forKey: "network_enabled")
-
-            if vm.state != .stopped {
-                showRestartAlert = true
-            } else {
-                vm.loadSettings()
-                dismiss()
-            }
-        } label: {
-            HStack(spacing: 10) {
-                Image(systemName: "arrow.clockwise")
-                Text("Save & Restart")
-                    .font(.system(size: 18, weight: .bold, design: .rounded))
-            }
-            .frame(maxWidth: 400)
-            .padding(.vertical, 16)
-            .background(
-                LinearGradient(
-                    colors: [Color(hex: "6C63FF"), Color(hex: "3F8EFC")],
-                    startPoint: .leading,
-                    endPoint: .trailing
-                )
+            LinearGradient(
+                colors: [Color(hex: "0A0A0F"), Color(hex: "12121E")],
+                startPoint: .top, endPoint: .bottom
             )
-            .foregroundColor(.white)
-            .cornerRadius(16)
-            .shadow(color: Color(hex: "6C63FF").opacity(0.4), radius: 12, y: 6)
+            .ignoresSafeArea()
+
+            VStack(spacing: 0) {
+                // Nav bar
+                HStack {
+                    Button {
+                        dismiss()
+                    } label: {
+                        HStack(spacing: 6) {
+                            Image(systemName: "chevron.left")
+                            Text("Back")
+                        }
+                        .font(.system(size: 16, weight: .medium))
+                        .foregroundColor(Color(hex: "6E6AFF"))
+                    }
+                    Spacer()
+                    Text("Settings")
+                        .font(.system(size: 17, weight: .semibold))
+                        .foregroundColor(.white)
+                    Spacer()
+                    // Invisible balancer
+                    Text("Back").opacity(0)
+                }
+                .padding(.horizontal, 20)
+                .padding(.vertical, 16)
+
+                ScrollView {
+                    VStack(spacing: 18) {
+                        settingsCard {
+                            VStack(alignment: .leading, spacing: 16) {
+                                sectionLabel("RAM Allocation")
+
+                                HStack {
+                                    Text("\(Int(ram)) GB")
+                                        .font(.system(size: 28, weight: .bold, design: .rounded))
+                                        .foregroundColor(.white)
+                                    Spacer()
+                                    if ram > 5 {
+                                        Label("High usage may degrade host", systemImage: "exclamationmark.triangle.fill")
+                                            .font(.system(size: 11, weight: .medium))
+                                            .foregroundColor(Color(hex: "FFB300"))
+                                    }
+                                }
+
+                                Slider(value: $ram, in: 1...6, step: 1)
+                                    .tint(ram > 5 ? Color(hex: "FFB300") : Color(hex: "6E6AFF"))
+
+                                HStack {
+                                    Text("1 GB").font(.caption).foregroundColor(Color(hex: "555570"))
+                                    Spacer()
+                                    Text("6 GB").font(.caption).foregroundColor(Color(hex: "555570"))
+                                }
+                            }
+                        }
+
+                        settingsCard {
+                            VStack(alignment: .leading, spacing: 16) {
+                                sectionLabel("Storage Allocation")
+
+                                Text("\(Int(storage)) GB")
+                                    .font(.system(size: 28, weight: .bold, design: .rounded))
+                                    .foregroundColor(.white)
+
+                                Slider(value: $storage, in: 8...64, step: 8)
+                                    .tint(Color(hex: "FF6A88"))
+
+                                HStack {
+                                    Text("8 GB").font(.caption).foregroundColor(Color(hex: "555570"))
+                                    Spacer()
+                                    Text("64 GB").font(.caption).foregroundColor(Color(hex: "555570"))
+                                }
+                            }
+                        }
+
+                        settingsCard {
+                            VStack(alignment: .leading, spacing: 14) {
+                                sectionLabel("CPU Cores")
+                                HStack(spacing: 12) {
+                                    ForEach(coreOptions, id: \.self) { option in
+                                        Button {
+                                            cores = option
+                                        } label: {
+                                            Text("\(option)")
+                                                .font(.system(size: 20, weight: .bold, design: .rounded))
+                                                .frame(maxWidth: .infinity)
+                                                .frame(height: 52)
+                                                .background(cores == option
+                                                    ? Color(hex: "6E6AFF")
+                                                    : Color(hex: "1E1E30"))
+                                                .foregroundColor(.white)
+                                                .clipShape(RoundedRectangle(cornerRadius: 14))
+                                                .overlay(
+                                                    RoundedRectangle(cornerRadius: 14)
+                                                        .stroke(
+                                                            cores == option
+                                                                ? Color(hex: "6E6AFF")
+                                                                : Color(hex: "2A2A3E"),
+                                                            lineWidth: 1
+                                                        )
+                                                )
+                                        }
+                                    }
+                                }
+                            }
+                        }
+
+                        settingsCard {
+                            Toggle(isOn: $networkEnabled) {
+                                HStack(spacing: 12) {
+                                    Image(systemName: "network")
+                                        .foregroundColor(Color(hex: "6E6AFF"))
+                                    Text("Network Interface")
+                                        .font(.system(size: 15, weight: .medium))
+                                        .foregroundColor(.white)
+                                }
+                            }
+                            .tint(Color(hex: "6E6AFF"))
+                        }
+
+                        Button {
+                            saveAndRestart()
+                        } label: {
+                            HStack(spacing: 10) {
+                                Image(systemName: "arrow.clockwise")
+                                Text("Save & Restart")
+                                    .font(.system(size: 17, weight: .bold, design: .rounded))
+                            }
+                            .frame(maxWidth: .infinity)
+                            .frame(height: 56)
+                            .background(
+                                LinearGradient(
+                                    colors: [Color(hex: "5A56FF"), Color(hex: "7B78FF")],
+                                    startPoint: .leading, endPoint: .trailing
+                                )
+                            )
+                            .foregroundColor(.white)
+                            .clipShape(RoundedRectangle(cornerRadius: 16))
+                            .shadow(color: Color(hex: "5A56FF").opacity(0.4), radius: 10, y: 4)
+                        }
+                        .padding(.top, 4)
+                    }
+                    .padding(.horizontal, 20)
+                    .padding(.bottom, 40)
+                }
+            }
         }
+        .navigationBarHidden(true)
+        .onAppear(perform: loadSettings)
+    }
+
+    // MARK: - Helpers
+    @ViewBuilder
+    private func settingsCard<Content: View>(@ViewBuilder _ content: () -> Content) -> some View {
+        content()
+            .padding(20)
+            .background(Color(hex: "16162A"))
+            .clipShape(RoundedRectangle(cornerRadius: 20))
+            .overlay(
+                RoundedRectangle(cornerRadius: 20)
+                    .stroke(Color(hex: "2A2A3E"), lineWidth: 1)
+            )
+    }
+
+    private func sectionLabel(_ text: String) -> some View {
+        Text(text)
+            .font(.system(size: 13, weight: .semibold))
+            .foregroundColor(Color(hex: "888AAA"))
+            .textCase(.uppercase)
+            .tracking(0.8)
+    }
+
+    private func loadSettings() {
+        let d = UserDefaults.standard
+        ram     = d.double(forKey: "ram_gb")     .clamped(to: 1...6,  default: 4)
+        storage = d.double(forKey: "storage_gb") .clamped(to: 8...64, default: 16)
+        cores   = d.integer(forKey: "cpu_cores") .clamped(to: [1,2,4], default: 2)
+        networkEnabled = d.object(forKey: "network_enabled") == nil
+            ? true
+            : d.bool(forKey: "network_enabled")
+    }
+
+    private func saveAndRestart() {
+        let d = UserDefaults.standard
+        d.set(ram,            forKey: "ram_gb")
+        d.set(storage,        forKey: "storage_gb")
+        d.set(cores,          forKey: "cpu_cores")
+        d.set(networkEnabled, forKey: "network_enabled")
+        d.synchronize()
+
+        vm.stopVM()
+        DispatchQueue.main.asyncAfter(deadline: .now() + 0.5) {
+            vm.loadSettings()
+            vm.startVM()
+        }
+        dismiss()
     }
 }
 
-// MARK: - Settings Card
-struct SettingsCard<Content: View>: View {
-    @ViewBuilder let content: Content
+// MARK: - Clamp helpers
+private extension Double {
+    func clamped(to range: ClosedRange<Double>, default fallback: Double) -> Double {
+        guard self > 0 else { return fallback }
+        return min(max(self, range.lowerBound), range.upperBound)
+    }
+}
 
-    var body: some View {
-        VStack(alignment: .leading, spacing: 0) {
-            content
-        }
-        .padding(20)
-        .frame(maxWidth: .infinity, alignment: .leading)
-        .background(
-            RoundedRectangle(cornerRadius: 16)
-                .fill(Color.white.opacity(0.05))
-                .overlay(
-                    RoundedRectangle(cornerRadius: 16)
-                        .stroke(Color.white.opacity(0.06), lineWidth: 1)
-                )
-        )
+private extension Int {
+    func clamped(to allowed: [Int], default fallback: Int) -> Int {
+        guard self > 0, allowed.contains(self) else { return fallback }
+        return self
     }
 }

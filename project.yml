@@ -10,24 +10,26 @@ settings:
   base:
     ARCHS: arm64
     VALID_ARCHS: arm64
-    SUPPORTS_MACCATALYST: false
+    ONLY_ACTIVE_ARCH: NO
+    SUPPORTS_MACCATALYST: NO
 
 targets:
   iCore:
     type: application
     platform: iOS
-    sources: [iCore]
+    sources:
+      - path: iCore
     settings:
       base:
+        PRODUCT_BUNDLE_IDENTIFIER: com.xsaturnmoon.icore
+        MARKETING_VERSION: "1.0"
+        CURRENT_PROJECT_VERSION: "1"
+        SWIFT_VERSION: "5.9"
+        TARGETED_DEVICE_FAMILY: "2"
         INFOPLIST_FILE: Info.plist
         CODE_SIGN_ENTITLEMENTS: iCore.entitlements
-        PRODUCT_BUNDLE_IDENTIFIER: com.xsaturnmoon.icore
-        TARGETED_DEVICE_FAMILY: "2"
-        MARKETING_VERSION: "1.0.0"
-        CURRENT_PROJECT_VERSION: "1"
-        SKIP_INSTALL: "NO"
-        ENABLE_BITCODE: "NO"
-        SWIFT_VERSION: "5.9"
-        GENERATE_INFOPLIST_FILE: "NO"
-    entitlements:
-      path: iCore.entitlements
+        ENABLE_BITCODE: NO
+        SKIP_INSTALL: NO
+    dependencies:
+      - framework: System/Library/Frameworks/Hypervisor.framework
+        weak: true

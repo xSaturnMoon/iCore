@@ -1,54 +1,51 @@
 # iCore
 
-iPad virtualization engine powered by Hypervisor.framework.
+> An ARM64 virtualization app for iPad Air M1, powered by `Hypervisor.framework`.
 
 ## Overview
 
-iCore is a SwiftUI application that virtualizes ARM64 operating systems on iPad Air M1 using Apple's Hypervisor.framework C API. Version 1 boots a minimal ARM64 test binary and displays serial output.
+iCore boots a minimal ARM64 payload inside a hardware-isolated VM on iPadOS 17+.
+Serial output is streamed live to the in-app console.
 
-## Features
-
-- **Dashboard** — VM status indicator, RAM/storage usage bars, start/settings controls
-- **Console** — Real-time scrolling serial output from the virtual machine
-- **Settings** — Configure RAM (1–6 GB), storage (8–64 GB), CPU cores (1/2/4), network toggle
-- **Hypervisor.framework** — Direct C API via dlopen (hv_vm_create, hv_vcpu_run, etc.)
-- **Demo mode** — Simulated boot output when Hypervisor.framework is unavailable
-
-## Requirements
-
-- iPad Air M1 (2022) or later with Apple Silicon
-- iPadOS 17.0+
-- Sideloaded via [Sideloadly](https://sideloadly.io/)
-
-## Build
-
-### Local (macOS)
-
-```bash
-brew install xcodegen
-xcodegen generate
-open iCore.xcodeproj
-```
-
-### CI (GitHub Actions)
-
-Push to `main` triggers the workflow automatically. The `.ipa` artifact is available in the Actions tab.
-
-## Architecture
+## Project Structure
 
 ```
 iCore/
-├── iCoreApp.swift          # App entry point
-├── Views/
-│   ├── DashboardView.swift # Home screen with status + resource bars
-│   ├── ConsoleView.swift   # Serial output display
-│   └── SettingsView.swift  # VM configuration
-└── VM/
-    ├── VMManager.swift         # VM lifecycle manager (ObservableObject)
-    ├── HypervisorWrapper.swift # dlopen bridge to Hypervisor.framework
-    └── VirtioConsole.swift     # MMIO serial console
+├── project.yml              # XcodeGen spec
+├── Info.plist               # iOS bundle metadata
+├── iCore.entitlements       # Hypervisor entitlement
+├── iCore/
+│   ├── iCoreApp.swift       # SwiftUI @main
+│   ├── Views/
+│   │   ├── DashboardView.swift
+│   │   ├── ConsoleView.swift
+│   │   └── SettingsView.swift
+│   └── VM/
+│       ├── VMManager.swift
+│       ├── HypervisorWrapper.swift
+│       └── VirtioConsole.swift
+└── .github/workflows/build.yml
 ```
 
-## License
+## Building Locally
 
-MIT
+1. Install [XcodeGen](https://github.com/yonaskolb/XcodeGen): `brew install xcodegen`
+2. Generate the Xcode project: `xcodegen generate`
+3. Open `iCore.xcodeproj` in Xcode 15.4+
+4. Set your signing team and run on an iPad Air M1 (iPadOS 17.0+)
+
+## CI / GitHub Actions
+
+Every push to `main` triggers a build that archives the app and uploads `iCore.ipa`
+as a downloadable workflow artifact.
+
+## Sideloading
+
+Download the artifact ZIP from the Actions run, extract `iCore.ipa`, and sideload
+via [Sideloadly](https://sideloadly.io/).
+
+## Requirements
+
+- Xcode 15.4+
+- iPadOS 17.0+ on Apple Silicon (M1/M2 iPad)
+- `com.apple.security.hypervisor` entitlement (included)

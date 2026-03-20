@@ -2,15 +2,13 @@ import SwiftUI
 
 @main
 struct iCoreApp: App {
-    @StateObject private var vmManager = VMManager()
+    @StateObject private var vm = VMManager()
 
     var body: some Scene {
         WindowGroup {
-            NavigationStack {
-                DashboardView()
-            }
-            .environmentObject(vmManager)
-            .preferredColorScheme(.dark)
+            DashboardView()
+                .environmentObject(vm)
+                .preferredColorScheme(.dark)
         }
     }
 }
