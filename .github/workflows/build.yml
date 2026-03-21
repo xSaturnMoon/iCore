@@ -51,9 +51,18 @@ jobs:
             CODE_SIGN_IDENTITY="" \
             PRODUCT_BUNDLE_IDENTIFIER=com.xsaturnmoon.icore
 
-      - name: Verify Bundle ID
+      - name: Fix Info.plist Bundle ID
         run: |
-          plutil -p $HOME/build/iCore.app/Info.plist | grep CFBundleIdentifier
+          /usr/libexec/PlistBuddy -c \
+            "Set :CFBundleIdentifier com.xsaturnmoon.icore" \
+            $HOME/build/iCore.app/Info.plist
+          /usr/libexec/PlistBuddy -c \
+            "Set :CFBundleExecutable iCore" \
+            $HOME/build/iCore.app/Info.plist
+          echo "Bundle ID after fix:"
+          /usr/libexec/PlistBuddy -c \
+            "Print :CFBundleIdentifier" \
+            $HOME/build/iCore.app/Info.plist
 
       - name: Package IPA
         run: |
