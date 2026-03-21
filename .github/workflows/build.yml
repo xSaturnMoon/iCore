@@ -16,25 +16,6 @@ jobs:
       - name: Install XcodeGen
         run: brew install xcodegen
 
-      - name: Download QEMU binary for iOS
-        run: |
-          curl -L "https://github.com/utmapp/UTM/releases/download/v4.5.0/UTM.ipa" \
-            -o utm.ipa
-          unzip -o utm.ipa "Payload/UTM.app/qemu-system-aarch64" \
-            -d utm_out || true
-          unzip -o utm.ipa "Payload/UTM.app/Libraries/qemu-system-aarch64" \
-            -d utm_out || true
-          find utm_out -name "qemu-system-aarch64" -type f
-          mkdir -p iCore/Resources
-          find utm_out -name "qemu-system-aarch64" -type f \
-            -exec cp {} iCore/Resources/qemu-system-aarch64 \;
-          ls -lh iCore/Resources/
-
-      - name: Verify QEMU binary
-        run: |
-          ls -lh iCore/Resources/ || echo "Resources folder empty!"
-          file iCore/Resources/qemu-system-aarch64 || echo "Binary not found!"
-
       - name: Generate Xcode project
         run: xcodegen generate
 
@@ -49,20 +30,19 @@ jobs:
             CODE_SIGNING_ALLOWED=NO \
             CODE_SIGNING_REQUIRED=NO \
             CODE_SIGN_IDENTITY="" \
-            PRODUCT_BUNDLE_IDENTIFIER=com.xsaturnmoon.icore
+            PRODUCT_BUNDLE_IDENTIFIER=com.xsaturnmoon.icore \
+            GENERATE_INFOPLIST_FILE=NO \
+            INFOPLIST_FILE=Info.plist
 
-      - name: Fix Info.plist Bundle ID
+      - name: Fix Info.plist
         run: |
-          /usr/libexec/PlistBuddy -c \
-            "Set :CFBundleIdentifier com.xsaturnmoon.icore" \
-            $HOME/build/iCore.app/Info.plist
-          /usr/libexec/PlistBuddy -c \
-            "Set :CFBundleExecutable iCore" \
-            $HOME/build/iCore.app/Info.plist
-          echo "Bundle ID after fix:"
-          /usr/libexec/PlistBuddy -c \
-            "Print :CFBundleIdentifier" \
-            $HOME/build/iCore.app/Info.plist
+          PLIST_PATH=$(find $HOME/build -name "Info.plist" | head -1)
+          echo "Found plist at: $PLIST_PATH"
+          /usr/libexec/PlistBuddy -c "Set :CFBundleIdentifier com.xsaturnmoon.icore" "$PLIST_PATH"
+          /usr/libexec/PlistBuddy -c "Set :CFBundleExecutable iCore" "$PLIST_PATH"
+          /usr/libexec/PlistBuddy -c "Set :CFBundleDevelopmentRegion en" "$PLIST_PATH"
+          echo "Final bundle ID:"
+          /usr/libexec/PlistBuddy -c "Print :CFBundleIdentifier" "$PLIST_PATH"
 
       - name: Package IPA
         run: |
