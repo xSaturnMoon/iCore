@@ -53,7 +53,25 @@ struct AddVMView: View {
                                                 UTType(filenameExtension: "iso")   ?? .data],
                           allowsMultipleSelection: false) { result in
                 if case .success(let urls) = result, let url = urls.first {
-                    diskPath = url.path; diskName = url.lastPathComponent
+                    // Must access security-scoped resource and copy to Documents
+                    let accessed = url.startAccessingSecurityScopedResource()
+                    defer { if accessed { url.stopAccessingSecurityScopedResource() } }
+
+                    let docs = FileManager.default.urls(for: .documentDirectory, in: .userDomainMask)[0]
+                    let dest = docs.appendingPathComponent(url.lastPathComponent)
+
+                    do {
+                        if FileManager.default.fileExists(atPath: dest.path) {
+                            try FileManager.default.removeItem(at: dest)
+                        }
+                        try FileManager.default.copyItem(at: url, to: dest)
+                        diskPath = dest.path
+                        diskName = url.lastPathComponent
+                    } catch {
+                        // Fallback: use original path
+                        diskPath = url.path
+                        diskName = url.lastPathComponent
+                    }
                 }
             }
         }
