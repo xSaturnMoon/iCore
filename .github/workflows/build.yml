@@ -16,6 +16,30 @@ jobs:
       - name: Install XcodeGen
         run: brew install xcodegen
 
+      - name: Download QEMU from UTM
+        run: |
+          mkdir -p iCore/Resources
+          echo "Downloading UTM IPA..."
+          curl -L "https://github.com/utmapp/UTM/releases/download/v4.5.0/UTM.ipa" \
+            -o utm.ipa --progress-bar
+          echo "Extracting QEMU binary..."
+          unzip -j utm.ipa "Payload/UTM.app/qemu-system-aarch64" \
+            -d iCore/Resources/ 2>/dev/null || true
+          # Try alternative paths
+          if [ ! -f "iCore/Resources/qemu-system-aarch64" ]; then
+            unzip -p utm.ipa | strings | grep qemu || true
+            unzip utm.ipa -d utm_full 2>/dev/null
+            find utm_full -name "qemu-system-aarch64" -exec cp {} iCore/Resources/ \; 2>/dev/null || true
+          fi
+          if [ -f "iCore/Resources/qemu-system-aarch64" ]; then
+            echo "QEMU found!"
+            ls -lh iCore/Resources/qemu-system-aarch64
+            chmod +x iCore/Resources/qemu-system-aarch64
+          else
+            echo "QEMU not found in UTM IPA — app will run in demo mode"
+          fi
+          rm -rf utm.ipa utm_full
+
       - name: Generate Xcode project
         run: xcodegen generate
 
@@ -57,4 +81,3 @@ jobs:
         with:
           name: iCore-ipa
           path: ~/iCore.ipa
-          

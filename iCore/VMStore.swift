@@ -13,7 +13,8 @@ final class VMStore: ObservableObject {
         let m = VMManager(ramGB: config.ramGB,
                           storageGB: config.storageGB,
                           cpuCores: config.cpuCores,
-                          networkEnabled: config.networkEnabled)
+                          networkEnabled: config.networkEnabled,
+                          diskImagePath: config.diskImagePath)
         m.onStateChange = { [weak self] raw in
             DispatchQueue.main.async {
                 guard let i = self?.vms.firstIndex(where: { $0.id == config.id }) else { return }

@@ -37,6 +37,7 @@ final class VMManager: ObservableObject {
     var storageGB: Int
     var cpuCores: Int
     var networkEnabled: Bool
+    var diskImagePath: String
     var diskUsedGB: Double = 0
 
     var onStateChange: ((String) -> Void)?
@@ -44,11 +45,12 @@ final class VMManager: ObservableObject {
     private var hypervisor: HypervisorWrapper?
     private var console: VirtioConsole?
 
-    init(ramGB: Double, storageGB: Int, cpuCores: Int, networkEnabled: Bool) {
+    init(ramGB: Double, storageGB: Int, cpuCores: Int, networkEnabled: Bool, diskImagePath: String = "") {
         self.ramGB          = ramGB
         self.storageGB      = storageGB
         self.cpuCores       = cpuCores
         self.networkEnabled = networkEnabled
+        self.diskImagePath  = diskImagePath
     }
 
     // MARK: - Start
@@ -90,8 +92,13 @@ final class VMManager: ObservableObject {
         let vcpuOK  = vmOK   && wrapper.createVCPU()
 
         if vcpuOK {
-            // Real Hypervisor path — load test binary and run
-            wrapper.loadTestBinary()
+            // Real QEMU path — load disk image if available
+            if !diskImagePath.isEmpty {
+                let url = URL(fileURLWithPath: diskImagePath)
+                _ = wrapper.loadKernel(at: url)
+            } else {
+                wrapper.loadTestBinary()
+            }
             setState(.running)
             wrapper.runVCPU { [weak self] msg in
                 DispatchQueue.main.async {
