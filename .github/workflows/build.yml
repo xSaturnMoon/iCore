@@ -16,41 +16,57 @@ jobs:
       - name: Install XcodeGen
         run: brew install xcodegen
 
-      - name: Get QEMU from UTM
+      - name: Extract QEMU and dependencies from UTM
         run: |
           mkdir -p iCore/Resources
-          echo "Downloading UTM..."
+          echo "Downloading UTM 4.5.0..."
           curl -L "https://github.com/utmapp/UTM/releases/download/v4.5.0/UTM.ipa" \
             -o utm.ipa --progress-bar
-          echo "Contents of UTM IPA (searching for qemu):"
-          unzip -l utm.ipa | grep -i qemu || echo "No qemu entries found"
-          echo "---"
-          echo "All executables in UTM IPA:"
-          unzip -l utm.ipa | grep -v "/$" | awk '{print $NF}' | head -60
-          echo "---"
-          # Try all known paths
-          unzip -j utm.ipa "Payload/UTM.app/qemu-system-aarch64" -d iCore/Resources/ 2>/dev/null && echo "Found at root" || true
-          unzip -j utm.ipa "Payload/UTM.app/Frameworks/qemu-system-aarch64" -d iCore/Resources/ 2>/dev/null && echo "Found in Frameworks" || true
-          unzip -j utm.ipa "Payload/UTM.app/Libraries/qemu-system-aarch64" -d iCore/Resources/ 2>/dev/null && echo "Found in Libraries" || true
-          # Generic search
-          if [ ! -f "iCore/Resources/qemu-system-aarch64" ]; then
-            echo "Trying generic extraction..."
-            unzip utm.ipa -d utm_tmp 2>/dev/null || true
-            find utm_tmp -name "qemu-system-aarch64" 2>/dev/null | head -5
-            QEMU_PATH=$(find utm_tmp -name "qemu-system-aarch64" 2>/dev/null | head -1)
-            if [ -n "$QEMU_PATH" ]; then
-              cp "$QEMU_PATH" iCore/Resources/qemu-system-aarch64
-              echo "Copied from: $QEMU_PATH"
+
+          echo "Extracting UTM..."
+          unzip -q utm.ipa -d utm_tmp
+
+          echo "Copying qemu-aarch64-softmmu binary..."
+          cp utm_tmp/Payload/UTM.app/Frameworks/qemu-aarch64-softmmu.framework/qemu-aarch64-softmmu \
+            iCore/Resources/qemu-system-aarch64
+          chmod +x iCore/Resources/qemu-system-aarch64
+
+          echo "Copying QEMU firmware data..."
+          cp -r utm_tmp/Payload/UTM.app/qemu iCore/Resources/qemu-data
+
+          echo "Copying required dylib frameworks..."
+          mkdir -p iCore/Resources/Frameworks
+          FRAMEWORKS=(
+            "glib-2.0.0"
+            "gmodule-2.0.0"
+            "gobject-2.0.0"
+            "gio-2.0.0"
+            "gthread-2.0.0"
+            "pixman-1.0"
+            "slirp.0"
+            "ffi.7"
+            "iconv.2"
+            "intl.8"
+            "zstd.1"
+            "crypto.1.1"
+            "ssl.1.1"
+            "png16.16"
+            "jpeg.62"
+          )
+          for fw in "${FRAMEWORKS[@]}"; do
+            SRC="utm_tmp/Payload/UTM.app/Frameworks/${fw}.framework"
+            if [ -d "$SRC" ]; then
+              cp -r "$SRC" "iCore/Resources/Frameworks/"
+              echo "  Copied: ${fw}"
             fi
-          fi
-          if [ -f "iCore/Resources/qemu-system-aarch64" ]; then
-            chmod +x iCore/Resources/qemu-system-aarch64
-            echo "SUCCESS: QEMU binary ready"
-            file iCore/Resources/qemu-system-aarch64
-            ls -lh iCore/Resources/qemu-system-aarch64
-          else
-            echo "WARNING: QEMU not found — app will run in demo mode"
-          fi
+          done
+
+          echo ""
+          echo "=== Result ==="
+          ls -lh iCore/Resources/qemu-system-aarch64
+          echo "Frameworks copied: $(ls iCore/Resources/Frameworks | wc -l)"
+          echo "QEMU data files: $(ls iCore/Resources/qemu-data | wc -l)"
+
           rm -rf utm.ipa utm_tmp
 
       - name: Generate Xcode project
@@ -78,8 +94,7 @@ jobs:
           /usr/libexec/PlistBuddy -c "Set :CFBundleExecutable iCore" "$PLIST"
           /usr/libexec/PlistBuddy -c "Set :CFBundleDevelopmentRegion en" "$PLIST"
           echo "Bundle ID: $(/usr/libexec/PlistBuddy -c 'Print :CFBundleIdentifier' $PLIST)"
-          echo "QEMU in bundle:"
-          ls -lh $HOME/build/iCore.app/Resources/qemu-system-aarch64 2>/dev/null || echo "Not present"
+          echo "QEMU binary: $(ls -lh $HOME/build/iCore.app/Resources/qemu-system-aarch64 2>/dev/null || echo 'NOT FOUND')"
 
       - name: Package IPA
         run: |
