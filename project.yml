@@ -20,11 +20,7 @@ targets:
     sources:
       - path: iCore
         excludes:
-          - Resources/**
           - Libraries/**
-      - path: iCore/Resources
-        type: folder
-        optional: true
     settings:
       base:
         PRODUCT_BUNDLE_IDENTIFIER: com.xsaturnmoon.icore
@@ -37,3 +33,4 @@ targets:
         CODE_SIGN_ENTITLEMENTS: iCore.entitlements
         ENABLE_BITCODE: NO
         SKIP_INSTALL: NO
+        
