@@ -21,17 +21,13 @@ jobs:
           echo "Downloading UTM 4.5.0..."
           curl -L "https://github.com/utmapp/UTM/releases/download/v4.5.0/UTM.ipa" \
             -o utm.ipa --progress-bar
-          echo "Extracting..."
           unzip -q utm.ipa -d utm_tmp
-          echo "Copying binary..."
           mkdir -p iCore/Resources
           cp "utm_tmp/Payload/UTM.app/Frameworks/qemu-aarch64-softmmu.framework/qemu-aarch64-softmmu" \
             iCore/Resources/qemu-system-aarch64
           chmod +x iCore/Resources/qemu-system-aarch64
-          echo "Copying firmware..."
           cp -r utm_tmp/Payload/UTM.app/qemu iCore/Resources/qemu-data
-          echo "QEMU ready:"
-          ls -lh iCore/Resources/qemu-system-aarch64
+          echo "QEMU ready: $(ls -lh iCore/Resources/qemu-system-aarch64)"
           rm -rf utm.ipa utm_tmp
 
       - name: Generate Xcode project
@@ -57,16 +53,39 @@ jobs:
           mkdir -p $HOME/build/iCore.app/Resources
           cp iCore/Resources/qemu-system-aarch64 $HOME/build/iCore.app/Resources/
           cp -r iCore/Resources/qemu-data $HOME/build/iCore.app/Resources/
-          echo "Bundle contents:"
-          ls -lh $HOME/build/iCore.app/Resources/
+          echo "QEMU in bundle: $(ls -lh $HOME/build/iCore.app/Resources/qemu-system-aarch64)"
 
-      - name: Fix Info.plist
+      - name: Overwrite Info.plist
         run: |
-          PLIST="$HOME/build/iCore.app/Info.plist"
-          /usr/libexec/PlistBuddy -c "Set :CFBundleIdentifier com.xsaturnmoon.icore" "$PLIST"
-          /usr/libexec/PlistBuddy -c "Set :CFBundleExecutable iCore" "$PLIST"
-          /usr/libexec/PlistBuddy -c "Set :CFBundleDevelopmentRegion en" "$PLIST"
-          echo "Bundle ID: $(/usr/libexec/PlistBuddy -c 'Print :CFBundleIdentifier' $PLIST)"
+          cat > /tmp/good.plist << 'EOF'
+          <?xml version="1.0" encoding="UTF-8"?>
+          <!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+          <plist version="1.0">
+          <dict>
+            <key>CFBundleDevelopmentRegion</key><string>en</string>
+            <key>CFBundleExecutable</key><string>iCore</string>
+            <key>CFBundleIdentifier</key><string>com.xsaturnmoon.icore</string>
+            <key>CFBundleInfoDictionaryVersion</key><string>6.0</string>
+            <key>CFBundleName</key><string>iCore</string>
+            <key>CFBundlePackageType</key><string>APPL</string>
+            <key>CFBundleShortVersionString</key><string>1.0</string>
+            <key>CFBundleVersion</key><string>1</string>
+            <key>LSRequiresIPhoneOS</key><true/>
+            <key>UIFileSharingEnabled</key><true/>
+            <key>LSSupportsOpeningDocumentsInPlace</key><true/>
+            <key>UILaunchScreen</key><dict/>
+            <key>UISupportedInterfaceOrientations~ipad</key>
+            <array>
+              <string>UIInterfaceOrientationPortrait</string>
+              <string>UIInterfaceOrientationPortraitUpsideDown</string>
+              <string>UIInterfaceOrientationLandscapeLeft</string>
+              <string>UIInterfaceOrientationLandscapeRight</string>
+            </array>
+          </dict>
+          </plist>
+          EOF
+          plutil -convert binary1 /tmp/good.plist -o $HOME/build/iCore.app/Info.plist
+          echo "Bundle ID: $(/usr/libexec/PlistBuddy -c 'Print :CFBundleIdentifier' $HOME/build/iCore.app/Info.plist)"
 
       - name: Package IPA
         run: |
