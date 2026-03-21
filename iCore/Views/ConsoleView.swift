@@ -11,65 +11,65 @@ struct ConsoleView: View {
             Color.black.ignoresSafeArea()
             VStack(spacing: 0) {
                 toolbar
+                Divider().background(Color(white: 0.1))
                 outputPane
+                Divider().background(Color(white: 0.1))
                 statusBar
             }
         }
         .navigationBarHidden(true)
         .onAppear {
-            Timer.scheduledTimer(withTimeInterval: 0.5, repeats: true) { t in
+            Timer.scheduledTimer(withTimeInterval: 0.55, repeats: true) { t in
                 if manager.state == .stopped { t.invalidate() }
                 cursorOn.toggle()
             }
         }
     }
 
-    // MARK: Toolbar
     private var toolbar: some View {
         HStack {
-            Button {
-                manager.pauseVM(); dismiss()
-            } label: {
-                HStack(spacing: 5) {
-                    Image(systemName: "chevron.left").font(.system(size: 14, weight: .semibold))
-                    Text("Back").font(.system(size: 15, weight: .medium))
-                }.foregroundColor(Color(hex: "6E6BFF"))
+            Button { manager.pauseVM(); dismiss() } label: {
+                HStack(spacing: 4) {
+                    Image(systemName: "chevron.left").font(.system(size: 14, weight: .medium))
+                    Text("Back").font(.system(size: 15))
+                }.foregroundColor(Color(hex: "0A84FF"))
             }.buttonStyle(.plain)
             Spacer()
             HStack(spacing: 6) {
-                Circle().fill(Color(hex: "FF5F57")).frame(width: 11, height: 11)
-                Circle().fill(Color(hex: "FEBC2E")).frame(width: 11, height: 11)
-                Circle().fill(Color(hex: "28C840")).frame(width: 11, height: 11)
+                Circle().fill(Color(hex: "FF5F57")).frame(width: 10, height: 10)
+                Circle().fill(Color(hex: "FEBC2E")).frame(width: 10, height: 10)
+                Circle().fill(Color(hex: "28C840")).frame(width: 10, height: 10)
             }
             Spacer()
             Button { autoScroll.toggle() } label: {
                 Image(systemName: autoScroll ? "arrow.down.to.line" : "pause")
-                    .font(.system(size: 14, weight: .semibold)).foregroundColor(Color(hex: "6E6BFF"))
+                    .font(.system(size: 14))
+                    .foregroundColor(Color(white: 0.3))
             }.buttonStyle(.plain)
         }
-        .padding(.horizontal, 18).padding(.vertical, 12)
-        .background(Color(hex: "0D0D0D"))
-        .overlay(Rectangle().fill(Color(hex: "1A1A1A")).frame(height: 1), alignment: .bottom)
+        .padding(.horizontal, 18)
+        .padding(.vertical, 11)
+        .background(Color(white: 0.04))
     }
 
-    // MARK: Output
     private var outputPane: some View {
         ScrollViewReader { proxy in
             ScrollView {
                 VStack(alignment: .leading, spacing: 0) {
-                    Text("iCore Terminal — ARM64 Guest Console\n")
-                        .font(.system(size: 11, weight: .medium, design: .monospaced))
-                        .foregroundColor(Color(hex: "444466"))
-                    Text(manager.consoleOutput.isEmpty ? "Waiting for VM output…" : manager.consoleOutput)
+                    Text("iCore  —  ARM64 Guest Console\n")
+                        .font(.system(size: 11, design: .monospaced))
+                        .foregroundColor(Color(white: 0.2))
+                    Text(manager.consoleOutput.isEmpty ? "Waiting for output…" : manager.consoleOutput)
                         .font(.system(size: 13, design: .monospaced))
-                        .foregroundColor(Color(hex: "00DD66"))
-                    Text(cursorOn ? "█" : " ")
+                        .foregroundColor(Color(white: 0.85))
+                    Text(cursorOn ? "▌" : " ")
                         .font(.system(size: 13, design: .monospaced))
-                        .foregroundColor(Color(hex: "00DD66"))
+                        .foregroundColor(Color(white: 0.6))
                         .animation(.none, value: cursorOn)
                     Color.clear.frame(height: 1).id("bottom")
                 }
-                .frame(maxWidth: .infinity, alignment: .leading).padding(16)
+                .frame(maxWidth: .infinity, alignment: .leading)
+                .padding(16)
             }
             .background(Color.black)
             .onChange(of: manager.consoleOutput) { _, _ in
@@ -80,18 +80,19 @@ struct ConsoleView: View {
         }
     }
 
-    // MARK: Status bar
     private var statusBar: some View {
         HStack(spacing: 8) {
-            Circle().fill(manager.state.color).frame(width: 7, height: 7)
+            Circle().fill(manager.state.color).frame(width: 6, height: 6)
             Text(manager.state.label)
-                .font(.system(size: 11, weight: .medium, design: .monospaced)).foregroundColor(Color(hex: "505070"))
+                .font(.system(size: 11, design: .monospaced))
+                .foregroundColor(Color(white: 0.3))
             Spacer()
             Text("\(manager.consoleOutput.count) chars")
-                .font(.system(size: 11, design: .monospaced)).foregroundColor(Color(hex: "303050"))
+                .font(.system(size: 11, design: .monospaced))
+                .foregroundColor(Color(white: 0.2))
         }
-        .padding(.horizontal, 16).padding(.vertical, 8)
-        .background(Color(hex: "0D0D0D"))
-        .overlay(Rectangle().fill(Color(hex: "1A1A1A")).frame(height: 1), alignment: .top)
+        .padding(.horizontal, 16)
+        .padding(.vertical, 8)
+        .background(Color(white: 0.04))
     }
 }
