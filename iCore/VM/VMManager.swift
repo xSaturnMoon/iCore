@@ -46,11 +46,11 @@ final class VMManager: ObservableObject {
     private var console: VirtioConsole?
 
     init(ramGB: Double, storageGB: Int, cpuCores: Int, networkEnabled: Bool, diskImagePath: String = "") {
-        self.ramGB          = ramGB
-        self.storageGB      = storageGB
-        self.cpuCores       = cpuCores
-        self.networkEnabled = networkEnabled
-        self.diskImagePath  = diskImagePath
+        self.ramGB           = ramGB
+        self.storageGB       = storageGB
+        self.cpuCores        = cpuCores
+        self.networkEnabled  = networkEnabled
+        self.diskImagePath   = diskImagePath
     }
 
     // MARK: - Start
@@ -59,17 +59,26 @@ final class VMManager: ObservableObject {
         setState(.booting)
         consoleOutput = ""
 
-        // Memory check — clamp to available - 0.5 GB
         let monitor   = MemoryMonitor()
         let available = monitor.availableMemoryGB
-        let effective: Double
-        if available > 0.5 && ramGB > available - 0.5 {
-            effective = ((available - 0.5) * 10).rounded() / 10
-            consoleOutput += "[iCore] Requested \(String(format:"%.1f",ramGB)) GB, available \(String(format:"%.1f",available)) GB → clamping to \(String(format:"%.1f",effective)) GB\n"
+        let effective = (available > 0.5 && ramGB > available - 0.5)
+            ? ((available - 0.5) * 10).rounded() / 10
+            : ramGB
+
+        consoleOutput += "[iCore] RAM: \(String(format:"%.1f", effective)) GB  CPU: \(cpuCores) vCPU\n"
+
+        // Log disk image status
+        if diskImagePath.isEmpty {
+            consoleOutput += "[iCore] Disk: none\n"
         } else {
-            effective = ramGB
+            let exists = FileManager.default.fileExists(atPath: diskImagePath)
+            consoleOutput += "[iCore] Disk: \(URL(fileURLWithPath: diskImagePath).lastPathComponent)\n"
+            consoleOutput += "[iCore] Disk readable: \(exists)\n"
+            if !exists {
+                consoleOutput += "[iCore] ERROR: File not found at:\n  \(diskImagePath)\n"
+                consoleOutput += "[iCore] Tip: re-import the file via Settings\n"
+            }
         }
-        consoleOutput += "[iCore] Memory available: \(String(format:"%.1f", available)) GB\n"
 
         let wrapper = HypervisorWrapper(ramGB: effective, cpuCores: cpuCores)
         let con = VirtioConsole { [weak self] text in
@@ -79,25 +88,15 @@ final class VMManager: ObservableObject {
         hypervisor = wrapper
         console    = con
 
-        // ── Real boot path ──────────────────────────────────────────────────
-        // Only attempted when a disk image has been provided by the user.
-        // If any step fails, we transparently fall through to demo mode.
-        // ────────────────────────────────────────────────────────────────────
-        // (diskImagePath is not stored in VMManager; check via onStateChange
-        //  caller or extend VMConfig. For this build we always try real HV
-        //  first, then fall back.)
-
-        let fwOK    = wrapper.loadFramework()
-        let vmOK    = fwOK   && wrapper.createVM()
-        let vcpuOK  = vmOK   && wrapper.createVCPU()
+        let fwOK   = wrapper.loadFramework()
+        let vmOK   = fwOK  && wrapper.createVM()
+        let vcpuOK = vmOK  && wrapper.createVCPU()
 
         if vcpuOK {
-            // Real QEMU path — load disk image if available
-            if !diskImagePath.isEmpty {
-                let url = URL(fileURLWithPath: diskImagePath)
-                _ = wrapper.loadKernel(at: url)
-            } else {
-                wrapper.loadTestBinary()
+            if !diskImagePath.isEmpty && FileManager.default.fileExists(atPath: diskImagePath) {
+                _ = wrapper.loadKernel(at: URL(fileURLWithPath: diskImagePath))
+            } else if !diskImagePath.isEmpty {
+                consoleOutput += "[iCore] Disk file missing — starting without disk\n"
             }
             setState(.running)
             wrapper.runVCPU { [weak self] msg in
@@ -107,8 +106,8 @@ final class VMManager: ObservableObject {
                 }
             }
         } else {
-            // Demo fallback — VirtioConsole fake boot sequence
-            consoleOutput += "[iCore] Hypervisor not available — running in demo mode.\n"
+            consoleOutput += "[iCore] QEMU not in bundle — demo mode.\n"
+            consoleOutput += "[iCore] Build must include qemu-system-aarch64 in Resources/\n"
             con.onBoot = { [weak self] in
                 DispatchQueue.main.async { self?.setState(.running) }
             }
