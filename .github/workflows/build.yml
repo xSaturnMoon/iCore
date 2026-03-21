@@ -16,57 +16,22 @@ jobs:
       - name: Install XcodeGen
         run: brew install xcodegen
 
-      - name: Extract QEMU and dependencies from UTM
+      - name: Extract QEMU from UTM
         run: |
-          mkdir -p iCore/Resources
           echo "Downloading UTM 4.5.0..."
           curl -L "https://github.com/utmapp/UTM/releases/download/v4.5.0/UTM.ipa" \
             -o utm.ipa --progress-bar
-
-          echo "Extracting UTM..."
+          echo "Extracting..."
           unzip -q utm.ipa -d utm_tmp
-
-          echo "Copying qemu-aarch64-softmmu binary..."
-          cp utm_tmp/Payload/UTM.app/Frameworks/qemu-aarch64-softmmu.framework/qemu-aarch64-softmmu \
+          echo "Copying binary..."
+          mkdir -p iCore/Resources
+          cp "utm_tmp/Payload/UTM.app/Frameworks/qemu-aarch64-softmmu.framework/qemu-aarch64-softmmu" \
             iCore/Resources/qemu-system-aarch64
           chmod +x iCore/Resources/qemu-system-aarch64
-
-          echo "Copying QEMU firmware data..."
+          echo "Copying firmware..."
           cp -r utm_tmp/Payload/UTM.app/qemu iCore/Resources/qemu-data
-
-          echo "Copying required dylib frameworks..."
-          mkdir -p iCore/Resources/Frameworks
-          FRAMEWORKS=(
-            "glib-2.0.0"
-            "gmodule-2.0.0"
-            "gobject-2.0.0"
-            "gio-2.0.0"
-            "gthread-2.0.0"
-            "pixman-1.0"
-            "slirp.0"
-            "ffi.7"
-            "iconv.2"
-            "intl.8"
-            "zstd.1"
-            "crypto.1.1"
-            "ssl.1.1"
-            "png16.16"
-            "jpeg.62"
-          )
-          for fw in "${FRAMEWORKS[@]}"; do
-            SRC="utm_tmp/Payload/UTM.app/Frameworks/${fw}.framework"
-            if [ -d "$SRC" ]; then
-              cp -r "$SRC" "iCore/Resources/Frameworks/"
-              echo "  Copied: ${fw}"
-            fi
-          done
-
-          echo ""
-          echo "=== Result ==="
+          echo "QEMU ready:"
           ls -lh iCore/Resources/qemu-system-aarch64
-          echo "Frameworks copied: $(ls iCore/Resources/Frameworks | wc -l)"
-          echo "QEMU data files: $(ls iCore/Resources/qemu-data | wc -l)"
-
           rm -rf utm.ipa utm_tmp
 
       - name: Generate Xcode project
@@ -87,6 +52,14 @@ jobs:
             GENERATE_INFOPLIST_FILE=NO \
             INFOPLIST_FILE=Info.plist
 
+      - name: Inject QEMU into app bundle
+        run: |
+          mkdir -p $HOME/build/iCore.app/Resources
+          cp iCore/Resources/qemu-system-aarch64 $HOME/build/iCore.app/Resources/
+          cp -r iCore/Resources/qemu-data $HOME/build/iCore.app/Resources/
+          echo "Bundle contents:"
+          ls -lh $HOME/build/iCore.app/Resources/
+
       - name: Fix Info.plist
         run: |
           PLIST="$HOME/build/iCore.app/Info.plist"
@@ -94,7 +67,6 @@ jobs:
           /usr/libexec/PlistBuddy -c "Set :CFBundleExecutable iCore" "$PLIST"
           /usr/libexec/PlistBuddy -c "Set :CFBundleDevelopmentRegion en" "$PLIST"
           echo "Bundle ID: $(/usr/libexec/PlistBuddy -c 'Print :CFBundleIdentifier' $PLIST)"
-          echo "QEMU binary: $(ls -lh $HOME/build/iCore.app/Resources/qemu-system-aarch64 2>/dev/null || echo 'NOT FOUND')"
 
       - name: Package IPA
         run: |

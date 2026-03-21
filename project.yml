@@ -21,9 +21,7 @@ targets:
       - path: iCore
         excludes:
           - Libraries/**
-      - path: iCore/Resources
-        type: folder
-        optional: true
+          - Resources/**
     settings:
       base:
         PRODUCT_BUNDLE_IDENTIFIER: com.xsaturnmoon.icore
