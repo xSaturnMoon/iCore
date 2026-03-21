@@ -19,6 +19,9 @@ jobs:
       - name: Generate Xcode project
         run: xcodegen generate
 
+      - name: Create Resources folder
+        run: mkdir -p iCore/Resources
+
       - name: Build App
         run: |
           xcodebuild build \
