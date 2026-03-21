@@ -18,17 +18,14 @@ jobs:
 
       - name: Extract QEMU from UTM
         run: |
-          echo "Downloading UTM 4.5.0..."
-          curl -L "https://github.com/utmapp/UTM/releases/download/v4.5.0/UTM.ipa" \
-            -o utm.ipa --progress-bar
+          curl -L "https://github.com/utmapp/UTM/releases/download/v4.5.0/UTM.ipa" -o utm.ipa --progress-bar
           unzip -q utm.ipa -d utm_tmp
           mkdir -p iCore/Resources
-          cp "utm_tmp/Payload/UTM.app/Frameworks/qemu-aarch64-softmmu.framework/qemu-aarch64-softmmu" \
-            iCore/Resources/qemu-system-aarch64
+          cp "utm_tmp/Payload/UTM.app/Frameworks/qemu-aarch64-softmmu.framework/qemu-aarch64-softmmu" iCore/Resources/qemu-system-aarch64
           chmod +x iCore/Resources/qemu-system-aarch64
           cp -r utm_tmp/Payload/UTM.app/qemu iCore/Resources/qemu-data
-          echo "QEMU ready: $(ls -lh iCore/Resources/qemu-system-aarch64)"
           rm -rf utm.ipa utm_tmp
+          ls -lh iCore/Resources/qemu-system-aarch64
 
       - name: Generate Xcode project
         run: xcodegen generate
@@ -48,44 +45,44 @@ jobs:
             GENERATE_INFOPLIST_FILE=NO \
             INFOPLIST_FILE=Info.plist
 
-      - name: Inject QEMU into app bundle
+      - name: Inject QEMU and fix plist
         run: |
-          mkdir -p $HOME/build/iCore.app/Resources
-          cp iCore/Resources/qemu-system-aarch64 $HOME/build/iCore.app/Resources/
-          cp -r iCore/Resources/qemu-data $HOME/build/iCore.app/Resources/
-          echo "QEMU in bundle: $(ls -lh $HOME/build/iCore.app/Resources/qemu-system-aarch64)"
-
-      - name: Overwrite Info.plist
-        run: |
-          cat > /tmp/good.plist << 'EOF'
-          <?xml version="1.0" encoding="UTF-8"?>
-          <!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
-          <plist version="1.0">
-          <dict>
-            <key>CFBundleDevelopmentRegion</key><string>en</string>
-            <key>CFBundleExecutable</key><string>iCore</string>
-            <key>CFBundleIdentifier</key><string>com.xsaturnmoon.icore</string>
-            <key>CFBundleInfoDictionaryVersion</key><string>6.0</string>
-            <key>CFBundleName</key><string>iCore</string>
-            <key>CFBundlePackageType</key><string>APPL</string>
-            <key>CFBundleShortVersionString</key><string>1.0</string>
-            <key>CFBundleVersion</key><string>1</string>
-            <key>LSRequiresIPhoneOS</key><true/>
-            <key>UIFileSharingEnabled</key><true/>
-            <key>LSSupportsOpeningDocumentsInPlace</key><true/>
-            <key>UILaunchScreen</key><dict/>
-            <key>UISupportedInterfaceOrientations~ipad</key>
-            <array>
-              <string>UIInterfaceOrientationPortrait</string>
-              <string>UIInterfaceOrientationPortraitUpsideDown</string>
-              <string>UIInterfaceOrientationLandscapeLeft</string>
-              <string>UIInterfaceOrientationLandscapeRight</string>
-            </array>
-          </dict>
-          </plist>
-          EOF
-          plutil -convert binary1 /tmp/good.plist -o $HOME/build/iCore.app/Info.plist
-          echo "Bundle ID: $(/usr/libexec/PlistBuddy -c 'Print :CFBundleIdentifier' $HOME/build/iCore.app/Info.plist)"
+          APP=$HOME/build/iCore.app
+          
+          # Inject QEMU
+          mkdir -p $APP/Resources
+          cp iCore/Resources/qemu-system-aarch64 $APP/Resources/
+          cp -r iCore/Resources/qemu-data $APP/Resources/
+          
+          # Write plist with no indentation to avoid XML corruption
+          python3 - << 'PYEOF'
+import plistlib, os
+p = {
+  'CFBundleDevelopmentRegion': 'en',
+  'CFBundleExecutable': 'iCore',
+  'CFBundleIdentifier': 'com.xsaturnmoon.icore',
+  'CFBundleInfoDictionaryVersion': '6.0',
+  'CFBundleName': 'iCore',
+  'CFBundlePackageType': 'APPL',
+  'CFBundleShortVersionString': '1.0',
+  'CFBundleVersion': '1',
+  'LSRequiresIPhoneOS': True,
+  'UIFileSharingEnabled': True,
+  'LSSupportsOpeningDocumentsInPlace': True,
+  'UILaunchScreen': {},
+  'UISupportedInterfaceOrientations~ipad': [
+    'UIInterfaceOrientationPortrait',
+    'UIInterfaceOrientationPortraitUpsideDown',
+    'UIInterfaceOrientationLandscapeLeft',
+    'UIInterfaceOrientationLandscapeRight',
+  ],
+}
+path = os.path.expanduser('~/build/iCore.app/Info.plist')
+with open(path, 'wb') as f:
+  plistlib.dump(p, f, fmt=plistlib.FMT_BINARY)
+print('Bundle ID:', p['CFBundleIdentifier'])
+print('Plist written to:', path)
+PYEOF
 
       - name: Package IPA
         run: |
